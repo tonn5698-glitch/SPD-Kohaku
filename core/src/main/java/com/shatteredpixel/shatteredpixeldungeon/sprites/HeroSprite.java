@@ -106,26 +106,26 @@ public class HeroSprite extends CharSprite {
 	private int turnsSinceAttack = 0;
 	private static final float TRANSFORM_DURATION = 0.5f;
 
-	// Ensure the GL texture matches the current film state (dizzy/monini/normal).
-	// Prevents UV mismatch when switching between states.
+	// Ensure the GL texture bound matches the current film state.
+	// After texture(), force re-apply the current animation so frame UVs
+	// are correct — otherwise the sprite shows full-sheet or stretched.
 	private void ensureNormalSheet() {
 		if (Dungeon.hero == null || Dungeon.hero.heroClass != HeroClass.DUELIST) return;
 		String normal = Dungeon.hero.heroClass.spritesheet();
 		SmartTexture normalTex = TextureCache.get( normal );
-
-		// Determine which texture should be bound
-		SmartTexture targetTex = normalTex;
-		if (transformState == TransformState.MONINI) {
-			targetTex = TextureCache.get( "sprites/kohaku_monini/walk.png" );
-		} else if (isDebuffed()) {
-			targetTex = TextureCache.get( DIZZY_PATH );
-		}
-
-		if (texture != targetTex) {
+		if (texture != normalTex) {
 			hurtTimer = -1;
-			texture( targetTex );
+			texture( normal );
 			lastFacing = -1;
 			updateFacing();
+			// texture() reset frame to full-sheet UV (0,0,1,1).
+			// updateFacing() rebuilds Animation arrays but doesn't re-apply frame.
+			// Force re-apply so the correct UV is on screen immediately.
+			if (curAnim != null && curAnim.frames != null && curAnim.frames.length > 0) {
+				play( curAnim, true );
+			} else {
+				play( idle, true );
+			}
 		}
 	}
 
@@ -214,6 +214,13 @@ public class HeroSprite extends CharSprite {
 	public void disguise(HeroClass cls){
 		texture( cls.spritesheet() );
 		updateArmor();
+		// Same fix as ensureNormalSheet: texture() resets frame to full-sheet,
+		// must force re-apply so the correct UV is on screen.
+		if (curAnim != null && curAnim.frames != null && curAnim.frames.length > 0) {
+			play( curAnim, true );
+		} else {
+			play( idle, true );
+		}
 	}
 	
 	public void updateArmor() {
@@ -460,12 +467,12 @@ public class HeroSprite extends CharSprite {
 		if (anim == hurt) {
 			hurtTimer = -1;
 			if (drinkTimer < 0) {
-				// Restore the normal kohaku texture. No need to rebuild animations
-				// (the cached kohakuFilm is always valid; just re-face correctly).
+				// Restore the normal kohaku texture after hurt flash.
+				// play(idle, true) forces frame re-apply so UV matches texture.
 				texture( hurtOriginalSheet );
-				lastFacing = -1; // force updateFacing to rebuild frames
+				lastFacing = -1;
 				updateFacing();
-				idle();
+				play( idle, true );
 			}
 		}
 	}
@@ -652,7 +659,7 @@ public class HeroSprite extends CharSprite {
 					texture( hurtOriginalSheet );
 					lastFacing = -1;
 					updateFacing();
-					idle();
+					play( idle, true );
 				}
 			}
 		}
