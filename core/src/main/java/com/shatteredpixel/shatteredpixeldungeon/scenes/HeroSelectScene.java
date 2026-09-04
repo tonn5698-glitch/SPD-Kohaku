@@ -193,6 +193,8 @@ public class HeroSelectScene extends PixelScene {
 		add(infoButton);
 
 		for (HeroClass cl : HeroClass.values()){
+			//MOD: only the Duelist is selectable
+			if (cl != HeroClass.DUELIST) continue;
 			HeroBtn button = new HeroBtn(cl);
 			add(button);
 			heroBtns.add(button);

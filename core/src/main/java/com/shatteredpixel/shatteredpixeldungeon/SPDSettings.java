@@ -73,7 +73,7 @@ public class SPDSettings extends GameSettings {
 	}
 
 	public static boolean landscape(){
-		return getBoolean(KEY_LANDSCAPE, false);
+		return getBoolean(KEY_LANDSCAPE, true);
 	}
 	
 	public static void zoom( int value ) {
@@ -361,6 +361,27 @@ public class SPDSettings extends GameSettings {
 	public static final String KEY_SFX_VOL      = "sfx_vol";
 	public static final String KEY_IGNORE_SILENT= "ignore_silent";
 	public static final String KEY_MUSIC_BG     = "music_bg";
+
+	// Kohaku: character speed (1=slow, 5=normal, 10=fast)
+	public static final String KEY_CHAR_SPEED   = "char_speed";
+	// Kohaku: drink animation duration in seconds (0.5 - 5.0)
+	public static final String KEY_DRINK_DURATION = "drink_duration";
+
+	public static void charSpeed( int value ) {
+		put( KEY_CHAR_SPEED, value );
+	}
+
+	public static int charSpeed() {
+		return getInt( KEY_CHAR_SPEED, 5, 1, 10 );
+	}
+
+	public static void drinkDuration( float value ) {
+		put( KEY_DRINK_DURATION, (int)(value * 10) );
+	}
+
+	public static float drinkDuration() {
+		return getInt( KEY_DRINK_DURATION, 15, 5, 50 ) / 10f;
+	}
 	
 	public static void music( boolean value ) {
 		Music.INSTANCE.enable( value );

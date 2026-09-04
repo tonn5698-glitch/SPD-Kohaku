@@ -62,6 +62,10 @@ public class AndroidLauncher extends AndroidApplication {
 	protected void onCreate (Bundle savedInstanceState) {
 		super.onCreate(savedInstanceState);
 
+		// Force-clear FLAG_SECURE so screenshots/screen recording are not blocked
+		// (some devices/environments auto-set this flag).
+		getWindow().clearFlags(android.view.WindowManager.LayoutParams.FLAG_SECURE);
+
 		try {
 			GdxNativesLoader.load();
 			FreeType.initFreeType();

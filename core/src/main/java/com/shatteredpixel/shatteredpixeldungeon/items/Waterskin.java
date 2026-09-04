@@ -124,6 +124,13 @@ public class Waterskin extends Item {
 					Sample.INSTANCE.play(Assets.Sounds.DRINK);
 					hero.sprite.operate(hero.pos);
 
+					// Kohaku: play waterskin drink animation (always good)
+					if (hero.heroClass == com.shatteredpixel.shatteredpixeldungeon.actors.hero.HeroClass.DUELIST
+							&& hero.sprite instanceof com.shatteredpixel.shatteredpixeldungeon.sprites.HeroSprite) {
+						((com.shatteredpixel.shatteredpixeldungeon.sprites.HeroSprite) hero.sprite)
+							.startDrink("waterskin", false, true, null);
+					}
+
 					updateQuickslot();
 				}
 
