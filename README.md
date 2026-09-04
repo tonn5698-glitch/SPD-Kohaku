@@ -1,27 +1,61 @@
-# Shattered Pixel Dungeon
+# SPD Kohaku
 
-[Shattered Pixel Dungeon](https://shatteredpixel.com/shatteredpd/) is an open-source traditional roguelike dungeon crawler with randomized levels and enemies, and hundreds of items to collect and use. It's based on the [source code of Pixel Dungeon](https://github.com/00-Evan/pixel-dungeon-gradle), by [Watabou](https://watabou.itch.io/).
+Mod of [Shattered Pixel Dungeon](https://shatteredpixel.com/shatteredpd/) — locked to **Duelist (Kohaku)** hero with 4-direction RPG Maker sprite system.
 
-Shattered Pixel Dungeon currently compiles for Android, iOS, and Desktop platforms. You can find official releases of the game on:
+## Features
 
-[![Get it on Google Play](https://shatteredpixel.com/assets/images/badges/gplay.png)](https://play.google.com/store/apps/details?id=com.shatteredpixel.shatteredpixeldungeon)
-[![Download on the App Store](https://shatteredpixel.com/assets/images/badges/appstore.png)](https://apps.apple.com/app/shattered-pixel-dungeon/id1563121109)
-[![Steam](https://shatteredpixel.com/assets/images/badges/steam.png)](https://store.steampowered.com/app/1769170/Shattered_Pixel_Dungeon/)<br>
-[![GOG.com](https://shatteredpixel.com/assets/images/badges/gog.png)](https://www.gog.com/game/shattered_pixel_dungeon)
-[![Itch.io](https://shatteredpixel.com/assets/images/badges/itch.png)](https://shattered-pixel.itch.io/shattered-pixel-dungeon)
-[![Github Releases](https://shatteredpixel.com/assets/images/badges/github.png)](https://github.com/00-Evan/shattered-pixel-dungeon/releases)
+- **4-direction sprite sheet** (96×96 frames, rendered at 16×16 via GPU scaling)
+- **5-phase drink animation**: pull from bag → held → held up → drinking → good/bad
+- **Waterskin drink** with same animation, always good
+- **Hurt flash** when taking damage, facing attacker
+- **Dizzy walk** when debuffed (Poison, Burning, Ooze, Vertigo, Slow, Doom, Chill, Frost, Corrosion)
+- **Monini transform** for speed effects (Haste, GreaterHaste, Speed): kohaku → transform → monini form
+- **Hero faces target** on attack/zap/operate/throw/spell
+- **Diagonal movement** keeps LEFT/RIGHT idle (no UP/DOWN rest facing)
+- **Speed setting** (1–10) and **drink duration setting** (0.5–5.0s)
+- **Screenshot/screen recording** enabled (FLAG_SECURE cleared)
 
-If you like this game, please consider [supporting me on Patreon](https://www.patreon.com/ShatteredPixel)!
+## Build (ARM64 proot-distro)
 
-There is an official blog for this project at [ShatteredPixel.com](https://www.shatteredpixel.com/blog/).
+```bash
+cd /path/to/SPD-Kohaku
+export JAVA_HOME=/usr/lib/jvm/java-17-openjdk-arm64 ANDROID_HOME=/opt/android-sdk ANDROID_SDK_ROOT=/opt/android-sdk
+sh ./gradlew :android:assembleDebug --no-daemon
+# output: android/build/outputs/apk/debug/android-debug.apk
+```
 
-The game also has a translation project hosted on [Transifex](https://explore.transifex.com/shattered-pixel/shattered-pixel-dungeon/).
+- **Always `sh ./gradlew`** (sdcard mount blocks direct exec)
+- **JDK 17 required** (AGP 9.1)
+- See [AGENTS.md](AGENTS.md) for full build instructions including aapt2 ARM64 patch
 
-Note that **this repository does not accept pull requests!** The code here is provided in hopes that others may find it useful for their own projects, not to allow community contribution. Issue reports of all kinds (bug reports, feature requests, etc.) are welcome.
+## Sprite Structure
 
-If you'd like to work with the code, you can find the following guides in `/docs`:
-- [Compiling for Android.](docs/getting-started-android.md)
-    - **[If you plan to distribute on Google Play please read the end of this guide.](docs/getting-started-android.md#distributing-your-app)**
-- [Compiling for desktop platforms.](docs/getting-started-desktop.md)
-- [Compiling for iOS.](docs/getting-started-ios.md)
-- [Recommended changes for making your own version.](docs/recommended-changes.md)
+| Sheet | Size | Frames | Usage |
+|-------|------|--------|-------|
+| `kohaku.png` | 2016×384 | 21×4 (96×96) | Walk (1–8), Attack (9–20), Idle (0) |
+| `kohaku_dizzy.png` | 768×384 | 8×4 | Debuff walk |
+| `kohaku_hurt.png` | 288×384 | 3×4 | Take damage |
+| `kohaku_pull_down.png` | 96×96 | 1 | Pull potion from bag |
+| `kohaku_monini/walk.png` | 768×384 | 8×4 | Speed form walk |
+| `kohaku_monini/hurt.png` | 288×384 | 3×4 | Speed form hurt |
+| `kohaku_transform/` | — | — | Transform animation sheets |
+| `kohaku_drink/` | 96×96 each | 1/frame | Held, heldup, drinking, good, waterskin |
+
+Facing: 0=DOWN, 1=LEFT, 2=RIGHT, 3=UP. Row = facing × colsPerRow.
+
+## Key Files
+
+| File | Description |
+|------|-------------|
+| `HeroSprite.java` | All Kohaku sprite logic: 16×16 override, drink timer, hurt, dizzy, monini, facing |
+| `Hero.java` | Diagonal detection, `restFacing`, `facing` field |
+| `Potion.java` | `drink()` defers apply via callback, passes beneficial flag |
+| `Waterskin.java` | Waterskin drink animation trigger |
+| `SPDSettings.java` | `charSpeed()`, `drinkDuration()` |
+| `WndCharSettings.java` | Speed/drink duration sliders |
+| `DrinkTestScene.java` | Test screen (tap version text on title) |
+| `AndroidLauncher.java` | `clearFlags(FLAG_SECURE)` |
+
+## Credits
+
+Based on [Shattered Pixel Dungeon](https://github.com/00-Evan/shattered-pixel-dungeon) by Evan Debenham. Kohaku hero sprites from RPG Maker assets.
