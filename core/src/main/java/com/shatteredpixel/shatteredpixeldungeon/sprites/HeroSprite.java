@@ -121,27 +121,40 @@ public class HeroSprite extends CharSprite {
 	private int turnsSinceAttack = 0;
 	private static final float TRANSFORM_DURATION = 0.5f;
 
-	// Ensure the GL texture bound matches the current film state.
+// Ensure the GL texture matches the current film state.
 	// After texture(), force re-apply the current animation so frame UVs
 	// are correct — otherwise the sprite shows full-sheet or stretched.
 	private void ensureNormalSheet() {
 		if (Dungeon.hero == null || Dungeon.hero.heroClass != HeroClass.DUELIST) return;
 		// Don't restore during drink/food — they intentionally use different textures
 		if (drinkTimer >= 0 || foodTimer >= 0) return;
+		// Don't fight the transform state machine — TRANSFORMING/DE_TRANSFORMING
+		// set texture+frame directly every tick themselves.
+		if (transformState == TransformState.TRANSFORMING || transformState == TransformState.DE_TRANSFORMING) return;
+
+		// Determine which texture should be bound for current state
 		String normal = Dungeon.hero.heroClass.spritesheet();
-		SmartTexture normalTex = TextureCache.get( normal );
-		if (texture != normalTex) {
+		SmartTexture targetTex;
+		if (transformState == TransformState.MONINI) {
+			targetTex = TextureCache.get("sprites/kohaku_monini/walk.png");
+		} else if (isDebuffed()) {
+			targetTex = TextureCache.get(DIZZY_PATH);
+		} else {
+			targetTex = TextureCache.get(normal);
+		}
+
+		if (texture != targetTex) {
 			hurtTimer = -1;
-			texture( normal );
+			texture(targetTex);
 			lastFacing = -1;
 			updateFacing();
 			// texture() reset frame to full-sheet UV (0,0,1,1).
 			// updateFacing() rebuilds Animation arrays but doesn't re-apply frame.
 			// Force re-apply so the correct UV is on screen immediately.
 			if (curAnim != null && curAnim.frames != null && curAnim.frames.length > 0) {
-				play( curAnim, true );
+				play(curAnim, true);
 			} else {
-				play( idle, true );
+				play(idle, true);
 			}
 		}
 	}
@@ -260,8 +273,9 @@ public class HeroSprite extends CharSprite {
 			scale.set( 1f );
 		}
 
-		// Dizzy has 8 cols/row, kohaku has 21. Use correct stride.
-		int colsPerRow = debuffed ? 8 : 21;
+		// Dizzy and monini both have 8 cols/row, kohaku has 21. Use correct stride.
+		boolean shortSheet = debuffed || transformState == TransformState.MONINI;
+		int colsPerRow = shortSheet ? 8 : 21;
 		int row = facing * colsPerRow;
 
 		// Idle: RPG Maker stands at frame 0 when not moving
@@ -270,11 +284,11 @@ public class HeroSprite extends CharSprite {
 
 		// Walk: 8 frames at 30fps.
 		// Normal sheet reserves col0 for a dedicated idle pose (cols1-8=walk).
-		// Dizzy sheet is only 8 cols total with NO separate idle frame —
-		// col0 IS the first walk frame. Requesting row+8 there overflows
-		// into the next facing row (wrong sprite content).
+		// Dizzy/monini sheets are only 8 cols total with NO separate idle
+		// frame — col0 IS the first walk frame. Requesting row+8 there
+		// overflows into the next facing row (wrong sprite content).
 		run = new Animation( RUN_FRAMERATE, true );
-		if (debuffed) {
+		if (shortSheet) {
 			run.frames( film, row + 0, row + 1, row + 2, row + 3,
 					row + 4, row + 5, row + 6, row + 7 );
 		} else {
@@ -536,21 +550,13 @@ public class HeroSprite extends CharSprite {
 
 		// CRITICAL: sync texture BEFORE super.update() so that when
 		// MovieClip.updateAnimation() calls frame(), the GL texture matches
-		// the film's UV indices. Without this, a state change (debuff/monini)
-		// sets a new texture but the old film's UVs are still active → full sheet.
+		// the film's UV indices. Delegates to ensureNormalSheet() so the
+		// frame()-force fix lives in one place instead of being duplicated
+		// (a duplicate here previously reintroduced the full-sheet bug,
+		// since it swapped texture without ever forcing frame() back).
 		if (Dungeon.hero != null && Dungeon.hero.heroClass == HeroClass.DUELIST
-				&& drinkTimer < 0 && curAnim != hurt) {
-			SmartTexture target;
-			if (transformState == TransformState.MONINI) {
-				target = TextureCache.get("sprites/kohaku_monini/walk.png");
-			} else if (isDebuffed()) {
-				target = TextureCache.get(DIZZY_PATH);
-			} else {
-				target = TextureCache.get(Dungeon.hero.heroClass.spritesheet());
-			}
-			if (texture != target) {
-				texture(target);
-			}
+				&& drinkTimer < 0 && foodTimer < 0 && curAnim != hurt) {
+			ensureNormalSheet();
 		}
 
 		super.update();
@@ -666,7 +672,7 @@ public class HeroSprite extends CharSprite {
 				ensureNormalSheet();
 				lastFacing = -1;
 				updateFacing();
-				idle();
+				play( idle, true );
 			} else {
 				String tex = null;
 				if (foodTimer < pullEnd) {
@@ -776,8 +782,12 @@ public class HeroSprite extends CharSprite {
 				transformState = TransformState.MONINI;
 				transformTimer = -1;
 				lastFacing = -1;
+				// texture is still bound to kougeki_henge.png from the line above;
+				// ensureNormalSheet() now sees state==MONINI and binds the actual
+				// monini/walk.png texture, forcing a correct frame in the process.
+				ensureNormalSheet();
 				updateFacing();
-				idle();
+				play( idle, true );
 			}
 		} else if (transformState == TransformState.DE_TRANSFORMING) {
 			transformTimer += Game.elapsed;
@@ -810,7 +820,7 @@ public class HeroSprite extends CharSprite {
 				ensureNormalSheet();
 				lastFacing = -1;
 				updateFacing();
-				idle();
+				play( idle, true );
 			}
 		} else if (transformState == TransformState.MONINI) {
 			// Check if speed effect ended → reverse transform
