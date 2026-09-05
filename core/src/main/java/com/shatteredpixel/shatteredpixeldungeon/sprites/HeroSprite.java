@@ -81,6 +81,8 @@ public class HeroSprite extends CharSprite {
 
 	// Kohaku drink animation timer
 	private static final String DRINK_PATH = "sprites/kohaku_drink/";
+	private static final String FOOD_PATH = "sprites/kohaku_food/";
+	private static final String FOOD_DOWN_PATH = "sprites/kohaku_food_down/";
 	private float drinkTimer = -1;  // -1 = not drinking
 	private float drinkDuration;
 	private String drinkOriginalSheet;
@@ -91,6 +93,18 @@ public class HeroSprite extends CharSprite {
 	private boolean drinkHurt;
 	private Callback drinkEffectCallback;
 	private boolean drinkEffectFired;
+
+	// Food animation (similar to drink but different textures/phases)
+	private float foodTimer = -1;  // -1 = not eating
+	private float foodDuration;
+	private String foodOriginalSheet;
+	private int foodPhase = -1; // 0=pull, 1=held, 2=heldUp, 3=good/hurt
+	private String foodName;     // e.g. "ration", "meat"
+	private boolean foodHarmful; // true for raw meat (hurt instead of good)
+	private boolean foodSkipHeldUp; // true for bland_chunks (skip held up)
+	private boolean foodHurt;
+	private Callback foodEffectCallback;
+	private boolean foodEffectFired;
 
 	// Kohaku hurt ("bị đánh") flash when taking damage
 	private static final String HURT_PATH = "sprites/kohaku_hurt.png";
@@ -111,6 +125,8 @@ public class HeroSprite extends CharSprite {
 	// are correct — otherwise the sprite shows full-sheet or stretched.
 	private void ensureNormalSheet() {
 		if (Dungeon.hero == null || Dungeon.hero.heroClass != HeroClass.DUELIST) return;
+		// Don't restore during drink/food — they intentionally use different textures
+		if (drinkTimer >= 0 || foodTimer >= 0) return;
 		String normal = Dungeon.hero.heroClass.spritesheet();
 		SmartTexture normalTex = TextureCache.get( normal );
 		if (texture != normalTex) {
@@ -628,6 +644,64 @@ public class HeroSprite extends CharSprite {
 			}
 		}
 
+		// Kohaku food timer
+		if (foodTimer >= 0) {
+			foodTimer += Game.elapsed;
+			float total = foodDuration;
+			float pullEnd    = total * 0.10f;
+			float heldEnd    = total * 0.30f;
+			float heldUpEnd  = foodSkipHeldUp ? heldEnd : total * 0.60f;
+			float goodEnd    = foodSkipHeldUp ? total * 0.70f : total * 0.80f;
+
+			if (foodTimer >= total) {
+				foodTimer = -1;
+				foodPhase = -1;
+				foodHurt = false;
+				foodEffectCallback = null;
+				foodEffectFired = false;
+				if (operate != null) {
+					operate.delay = 1f / ATTACK_FRAMERATE;
+				}
+				ensureNormalSheet();
+				lastFacing = -1;
+				updateFacing();
+				idle();
+			} else {
+				String tex = null;
+				if (foodTimer < pullEnd) {
+					foodPhase = 0;
+					Dungeon.hero.facing = 0;
+					tex = PULL_PATH;
+				} else if (foodTimer < heldEnd) {
+					foodPhase = 1;
+					tex = FOOD_PATH + foodName + ".png";
+				} else if (foodTimer < heldUpEnd) {
+					foodPhase = 2;
+					tex = FOOD_DOWN_PATH + foodName + ".png";
+				} else {
+					foodPhase = 3;
+					if (!foodEffectFired && foodEffectCallback != null) {
+						foodEffectFired = true;
+						foodEffectCallback.call();
+					}
+					if (foodHarmful && !foodHurt) {
+						foodHurt = true;
+						Dungeon.hero.facing = 0;
+						texture( HURT_PATH );
+						frame( hurtFilm().get( 0 ) );
+					}
+				}
+
+				if (tex != null && !foodHurt) {
+					SmartTexture foodTex = TextureCache.get(tex);
+					foodTex.filter(Texture.LINEAR, Texture.LINEAR);
+					texture(foodTex);
+					scale.set(1f, 1f);
+					origin.set(0f, 0f);
+				}
+			}
+		}
+
 		if (idleGrace > 0) {
 			idleGrace -= Game.elapsed;
 			if (idleGrace <= 0) {
@@ -773,6 +847,30 @@ public class HeroSprite extends CharSprite {
 		// completes once the whole drink is done, keeping the hero busy throughout.
 		if (operate != null) {
 			operate.delay = drinkDuration / operate.frames.length;
+		}
+	}
+
+	/**
+	 * Start Kohaku food eating animation.
+	 * @param foodName e.g. "ration", "meat", "berry"
+	 * @param harmful true for raw meat (hurt instead of good)
+	 * @param skipHeldUp true for bland_chunks (skip held up phase)
+	 * @param effect callback when food effect applies
+	 */
+	public void startFood(String foodName, boolean harmful, boolean skipHeldUp, Callback effect) {
+		if (Dungeon.hero.heroClass != HeroClass.DUELIST) return;
+		foodOriginalSheet = Dungeon.hero.heroClass.spritesheet();
+		foodDuration = 3f; // TIME_TO_EAT
+		this.foodName = foodName;
+		foodHarmful = harmful;
+		this.foodSkipHeldUp = skipHeldUp;
+		foodHurt = false;
+		foodEffectCallback = effect;
+		foodEffectFired = false;
+		foodTimer = 0;
+		foodPhase = -1;
+		if (operate != null) {
+			operate.delay = foodDuration / operate.frames.length;
 		}
 	}
 

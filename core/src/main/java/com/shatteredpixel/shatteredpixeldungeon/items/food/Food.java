@@ -86,6 +86,16 @@ public class Food extends Item {
 			
 			hero.spend( eatingTime() );
 
+			// Kohaku: start food eating animation
+			if (hero.heroClass == com.shatteredpixel.shatteredpixeldungeon.actors.hero.HeroClass.DUELIST
+					&& hero.sprite instanceof com.shatteredpixel.shatteredpixeldungeon.sprites.HeroSprite) {
+				String foodName = getFoodName();
+				boolean harmful = this instanceof MysteryMeat;
+				boolean skipHeldUp = this instanceof Blandfruit.Chunks;
+				((com.shatteredpixel.shatteredpixeldungeon.sprites.HeroSprite) hero.sprite)
+					.startFood(foodName, harmful, skipHeldUp, null);
+			}
+
 			Talent.onFoodEaten(hero, energy, this);
 			
 			Statistics.foodEaten++;
@@ -124,6 +134,25 @@ public class Food extends Item {
 		}
 
 		Buff.affect(hero, Hunger.class).satisfy(foodVal);
+	}
+
+	/** Returns the sprite name for Kohaku food animation. */
+	protected String getFoodName() {
+		// Map food classes to sprite file names in kohaku_food/
+		if (this instanceof Berry)               return "kohaku_berry";
+		if (this instanceof Blandfruit)         return "kohaku_blandfruit";
+		if (this instanceof Blandfruit.Chunks)  return "kohaku_bland_chunks";
+		if (this instanceof MysteryMeat)        return "kohaku_meat";
+		if (this instanceof ChargrilledMeat)    return "kohaku_steak";
+		if (this instanceof FrozenCarpaccio)    return "kohaku_carpaccio";
+		if (this instanceof StewedMeat)         return "kohaku_stewed";
+		if (this instanceof MeatPie)            return "kohaku_meat_pie";
+		if (this instanceof Pasty)              return "kohaku_pasty";
+		if (this instanceof Pasty.FishLeftover) return "kohaku_fish_leftover";
+		if (this instanceof PhantomMeat)        return "kohaku_phantom_meat";
+		if (this instanceof SupplyRation)       return "kohaku_supply_ration";
+		if (this instanceof SmallRation)        return "kohaku_ration";
+		return "kohaku_ration"; // default
 	}
 	
 	@Override
