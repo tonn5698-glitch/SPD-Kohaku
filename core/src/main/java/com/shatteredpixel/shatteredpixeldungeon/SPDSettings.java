@@ -364,8 +364,8 @@ public class SPDSettings extends GameSettings {
 
 	// Kohaku: character speed (1=slow, 5=normal, 10=fast)
 	public static final String KEY_CHAR_SPEED   = "char_speed";
-	// Kohaku: drink animation duration in seconds (0.5 - 5.0)
-	public static final String KEY_DRINK_DURATION = "drink_duration";
+	// Kohaku: action duration in seconds (0.5 - 5.0)
+	public static final String KEY_ACTION_DURATION = "drink_duration";
 
 	public static void charSpeed( int value ) {
 		put( KEY_CHAR_SPEED, value );
@@ -375,12 +375,12 @@ public class SPDSettings extends GameSettings {
 		return getInt( KEY_CHAR_SPEED, 5, 1, 10 );
 	}
 
-	public static void drinkDuration( float value ) {
-		put( KEY_DRINK_DURATION, (int)(value * 10) );
+	public static void actionDuration( float value ) {
+		put( KEY_ACTION_DURATION, (int)(value * 10) );
 	}
 
-	public static float drinkDuration() {
-		return getInt( KEY_DRINK_DURATION, 15, 5, 50 ) / 10f;
+	public static float actionDuration() {
+		return getInt( KEY_ACTION_DURATION, 15, 5, 50 ) / 10f;
 	}
 	
 	public static void music( boolean value ) {

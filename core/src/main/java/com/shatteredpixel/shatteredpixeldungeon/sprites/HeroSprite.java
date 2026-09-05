@@ -840,7 +840,7 @@ public class HeroSprite extends CharSprite {
 	public void startDrink(String color, boolean exotic, boolean beneficial, Callback effect) {
 		if (Dungeon.hero.heroClass != HeroClass.DUELIST) return;
 		drinkOriginalSheet = Dungeon.hero.heroClass.spritesheet();
-		drinkDuration = Math.max(0.5f, Math.min(5.0f, SPDSettings.drinkDuration()));
+		drinkDuration = Math.max(0.5f, Math.min(5.0f, SPDSettings.actionDuration()));
 		drinkColor = color;
 		drinkExotic = exotic;
 		drinkBeneficial = beneficial;
@@ -867,7 +867,7 @@ public class HeroSprite extends CharSprite {
 	public void startFood(String foodName, boolean harmful, boolean skipHeldUp, boolean skipGood, Callback effect) {
 		if (Dungeon.hero.heroClass != HeroClass.DUELIST) return;
 		foodOriginalSheet = Dungeon.hero.heroClass.spritesheet();
-		foodDuration = 3f; // TIME_TO_EAT
+		foodDuration = Math.max(0.5f, Math.min(5.0f, SPDSettings.actionDuration()));
 		this.foodName = foodName;
 		foodHarmful = harmful;
 		this.foodSkipHeldUp = skipHeldUp;

@@ -35,16 +35,16 @@ public class WndCharSettings extends Window {
 
 		// Drink animation duration slider: 5 (0.5s) to 50 (5.0s), default 15 (1.5s)
 		OptionSlider drinkSlider = new OptionSlider(
-				Messages.get(this, "drink_duration"),
+				Messages.get(this, "action_duration"),
 				"0.5s",
 				"5.0s",
 				5, 50) {
 			@Override
 			protected void onChange() {
-				SPDSettings.drinkDuration(getSelectedValue() / 10f);
+				SPDSettings.actionDuration(getSelectedValue() / 10f);
 			}
 		};
-		drinkSlider.setSelectedValue((int)(SPDSettings.drinkDuration() * 10));
+		drinkSlider.setSelectedValue((int)(SPDSettings.actionDuration() * 10));
 		add(drinkSlider);
 		drinkSlider.setRect(0, pos, WIDTH, SLIDER_HEIGHT);
 		pos += SLIDER_HEIGHT + GAP;
