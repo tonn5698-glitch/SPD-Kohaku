@@ -102,6 +102,7 @@ public class HeroSprite extends CharSprite {
 	private String foodName;     // e.g. "ration", "meat"
 	private boolean foodHarmful; // true for raw meat (hurt instead of good)
 	private boolean foodSkipHeldUp; // true for bland_chunks (skip held up)
+	private boolean foodSkipGood; // true for light food (no good phase)
 	private boolean foodHurt;
 	private Callback foodEffectCallback;
 	private boolean foodEffectFired;
@@ -685,11 +686,16 @@ public class HeroSprite extends CharSprite {
 						foodEffectCallback.call();
 					}
 					if (foodHarmful && !foodHurt) {
+						// Harmful: show hurt face down
 						foodHurt = true;
 						Dungeon.hero.facing = 0;
 						texture( HURT_PATH );
 						frame( hurtFilm().get( 0 ) );
+					} else if (!foodSkipGood) {
+						// Normal food: show good
+						tex = DRINK_PATH + "good.png";
 					}
+					// Light food (foodSkipGood=true): no tex → stays on held up → idle
 				}
 
 				if (tex != null && !foodHurt) {
@@ -855,15 +861,17 @@ public class HeroSprite extends CharSprite {
 	 * @param foodName e.g. "ration", "meat", "berry"
 	 * @param harmful true for raw meat (hurt instead of good)
 	 * @param skipHeldUp true for bland_chunks (skip held up phase)
+	 * @param skipGood true for light food (no good phase)
 	 * @param effect callback when food effect applies
 	 */
-	public void startFood(String foodName, boolean harmful, boolean skipHeldUp, Callback effect) {
+	public void startFood(String foodName, boolean harmful, boolean skipHeldUp, boolean skipGood, Callback effect) {
 		if (Dungeon.hero.heroClass != HeroClass.DUELIST) return;
 		foodOriginalSheet = Dungeon.hero.heroClass.spritesheet();
 		foodDuration = 3f; // TIME_TO_EAT
 		this.foodName = foodName;
 		foodHarmful = harmful;
 		this.foodSkipHeldUp = skipHeldUp;
+		this.foodSkipGood = skipGood;
 		foodHurt = false;
 		foodEffectCallback = effect;
 		foodEffectFired = false;

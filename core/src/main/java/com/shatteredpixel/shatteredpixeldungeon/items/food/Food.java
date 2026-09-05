@@ -91,9 +91,10 @@ public class Food extends Item {
 					&& hero.sprite instanceof com.shatteredpixel.shatteredpixeldungeon.sprites.HeroSprite) {
 				String foodName = getFoodName();
 				boolean harmful = this instanceof MysteryMeat;
-				boolean skipHeldUp = this instanceof Blandfruit.Chunks;
+				boolean skipHeldUp = false; // all foods have held up now
+				boolean skipGood = isLightFood();
 				((com.shatteredpixel.shatteredpixeldungeon.sprites.HeroSprite) hero.sprite)
-					.startFood(foodName, harmful, skipHeldUp, null);
+					.startFood(foodName, harmful, skipHeldUp, skipGood, null);
 			}
 
 			Talent.onFoodEaten(hero, energy, this);
@@ -136,9 +137,8 @@ public class Food extends Item {
 		Buff.affect(hero, Hunger.class).satisfy(foodVal);
 	}
 
-	/** Returns the sprite name for Kohaku food animation. */
+/** Returns the sprite name for Kohaku food animation. */
 	protected String getFoodName() {
-		// Map food classes to sprite file names in kohaku_food/
 		if (this instanceof Berry)               return "kohaku_berry";
 		if (this instanceof Blandfruit)         return "kohaku_blandfruit";
 		if (this instanceof Blandfruit.Chunks)  return "kohaku_bland_chunks";
@@ -153,6 +153,13 @@ public class Food extends Item {
 		if (this instanceof SupplyRation)       return "kohaku_supply_ration";
 		if (this instanceof SmallRation)        return "kohaku_ration";
 		return "kohaku_ration"; // default
+	}
+
+	/** Light food: no good phase (berry, blandfruit, bland_chunks). */
+	protected boolean isLightFood() {
+		return this instanceof Berry
+			|| this instanceof Blandfruit
+			|| this instanceof Blandfruit.Chunks;
 	}
 	
 	@Override
