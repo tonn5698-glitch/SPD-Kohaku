@@ -41,11 +41,13 @@ public class Chrome {
 		TAB_SET,
 		TAB_SELECTED,
 		TAB_UNSELECTED,
-		BLANK
+		BLANK,
+		RPG_WINDOW
 	}
 	
 	public static NinePatch get( Type type ) {
 		String Asset = Assets.Interfaces.CHROME;
+		String RPG_ASSET = "interfaces/rpg_window.png";
 		switch (type) {
 		case WINDOW:
 			return new NinePatch( Asset, 0, 0, 20, 20, 6 );
@@ -78,6 +80,8 @@ public class Chrome {
 			return new NinePatch( Asset, 75, 22, 8, 13, 3, 7, 3, 5 );
 		case BLANK:
 			return new NinePatch( Asset, 45, 0, 1, 1, 0, 0, 0, 0 );
+		case RPG_WINDOW:
+			return new NinePatch( RPG_ASSET, 0, 0, 96, 96, 8 );
 		default:
 			return null;
 		}

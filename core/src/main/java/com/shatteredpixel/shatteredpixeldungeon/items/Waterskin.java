@@ -114,7 +114,31 @@ public class Waterskin extends Item {
 				int dropsToConsume = (int)Math.ceil(dropsNeeded - 0.01f);
 				dropsToConsume = (int)GameMath.gate(1, dropsToConsume, volume);
 
-				if (Dewdrop.consumeDew(dropsToConsume, hero, true)){
+				// For Kohaku/DUELIST: defer heal to the good phase of the drink
+				// animation. Check if we have enough volume first without consuming.
+				if (hero.heroClass == com.shatteredpixel.shatteredpixeldungeon.actors.hero.HeroClass.DUELIST
+						&& hero.sprite instanceof com.shatteredpixel.shatteredpixeldungeon.sprites.HeroSprite) {
+
+					if (volume >= dropsToConsume) {
+						final int drops = dropsToConsume;
+						final Hero h = hero;
+						((com.shatteredpixel.shatteredpixeldungeon.sprites.HeroSprite) hero.sprite)
+							.startDrink("waterskin", false, true, new com.watabou.utils.Callback() {
+								@Override public void call() {
+									volume -= drops;
+									Dewdrop.consumeDew(drops, h, true);
+									updateQuickslot();
+								}
+							});
+
+						Catalog.countUses(Dewdrop.class, drops);
+						hero.spend(TIME_TO_DRINK);
+						hero.busy();
+						Sample.INSTANCE.play(Assets.Sounds.DRINK);
+						hero.sprite.operate(hero.pos);
+					}
+
+				} else if (Dewdrop.consumeDew(dropsToConsume, hero, true)){
 					volume -= dropsToConsume;
 					Catalog.countUses(Dewdrop.class, dropsToConsume);
 

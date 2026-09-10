@@ -249,6 +249,28 @@ public class TitleScene extends PixelScene {
 		version.y = insets.top + h - version.height() - (DeviceCompat.isDesktop() ? 2 : 4);
 		add( version );
 
+		// Debug: tap version text to open debug choices
+		add(new PointerArea(version) {
+			@Override protected void onClick(PointerEvent event) {
+				ShatteredPixelDungeon.scene().addToFront( new WndOptions(
+						Icons.get(Icons.WARNING),
+						"Debug Menu",
+						"Select a debug test:",
+						"Drink Test Scene",
+						"Debug Textbox"
+				) {
+					@Override
+					protected void onSelect(int index) {
+						if (index == 0) {
+							ShatteredPixelDungeon.switchScene(DrinkTestScene.class);
+						} else if (index == 1) {
+							ShatteredPixelDungeon.switchScene(DebugDialogScene.class);
+						}
+					}
+				});
+			}
+		});
+
 		btnFade = new IconButton(Icons.CHEVRON.get()){
 			@Override
 			protected void onClick() {

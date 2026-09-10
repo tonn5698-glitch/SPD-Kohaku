@@ -76,7 +76,6 @@ public class Food extends Item {
 			detach( hero.belongings.backpack );
 			Catalog.countUse(getClass());
 			
-			satisfy(hero);
 			GLog.i( Messages.get(this, "eat_msg") );
 			
 			hero.sprite.operate( hero.pos );
@@ -85,6 +84,24 @@ public class Food extends Item {
 			eatSFX();
 			
 			hero.spend( eatingTime() );
+
+			// Kohaku: start food eating animation, defer satisfy() to good phase
+			if (hero.heroClass == com.shatteredpixel.shatteredpixeldungeon.actors.hero.HeroClass.DUELIST
+					&& hero.sprite instanceof com.shatteredpixel.shatteredpixeldungeon.sprites.HeroSprite) {
+				String foodName = getFoodName();
+				boolean harmful = this instanceof MysteryMeat;
+				boolean skipHeldUp = false;
+				boolean skipGood = isLightFood();
+				final Hero h = hero;
+				((com.shatteredpixel.shatteredpixeldungeon.sprites.HeroSprite) hero.sprite)
+					.startFood(foodName, harmful, skipHeldUp, skipGood, new com.watabou.utils.Callback() {
+						@Override public void call() {
+							satisfy( h );
+						}
+					});
+			} else {
+				satisfy( hero );
+			}
 
 			Talent.onFoodEaten(hero, energy, this);
 			
@@ -124,6 +141,31 @@ public class Food extends Item {
 		}
 
 		Buff.affect(hero, Hunger.class).satisfy(foodVal);
+	}
+
+/** Returns the sprite name for Kohaku food animation. */
+	protected String getFoodName() {
+		if (this instanceof Berry)               return "kohaku_berry";
+		if (this instanceof Blandfruit)         return "kohaku_blandfruit";
+		if (this instanceof Blandfruit.Chunks)  return "kohaku_bland_chunks";
+		if (this instanceof MysteryMeat)        return "kohaku_meat";
+		if (this instanceof ChargrilledMeat)    return "kohaku_steak";
+		if (this instanceof FrozenCarpaccio)    return "kohaku_carpaccio";
+		if (this instanceof StewedMeat)         return "kohaku_stewed";
+		if (this instanceof MeatPie)            return "kohaku_meat_pie";
+		if (this instanceof Pasty)              return "kohaku_pasty";
+		if (this instanceof Pasty.FishLeftover) return "kohaku_fish_leftover";
+		if (this instanceof PhantomMeat)        return "kohaku_phantom_meat";
+		if (this instanceof SupplyRation)       return "kohaku_supply_ration";
+		if (this instanceof SmallRation)        return "kohaku_ration";
+		return "kohaku_ration"; // default
+	}
+
+	/** Light food: no good phase (berry, blandfruit, bland_chunks). */
+	protected boolean isLightFood() {
+		return this instanceof Berry
+			|| this instanceof Blandfruit
+			|| this instanceof Blandfruit.Chunks;
 	}
 	
 	@Override

@@ -33,6 +33,7 @@ import com.shatteredpixel.shatteredpixeldungeon.actors.buffs.MindVision;
 import com.shatteredpixel.shatteredpixeldungeon.actors.buffs.RevealedArea;
 import com.shatteredpixel.shatteredpixeldungeon.actors.buffs.Terror;
 import com.shatteredpixel.shatteredpixeldungeon.actors.hero.Hero;
+import com.shatteredpixel.shatteredpixeldungeon.actors.hero.HeroClass;
 import com.shatteredpixel.shatteredpixeldungeon.actors.hero.Talent;
 import com.shatteredpixel.shatteredpixeldungeon.actors.hero.abilities.cleric.PowerOfMany;
 import com.shatteredpixel.shatteredpixeldungeon.actors.hero.abilities.huntress.SpiritHawk;
@@ -283,6 +284,8 @@ public class Dungeon {
 		
 		Badges.reset();
 		
+		//MOD: fall back to the Duelist if no class was selected (e.g. daily runs)
+		if (GamesInProgress.selectedClass == null) GamesInProgress.selectedClass = HeroClass.DUELIST;
 		GamesInProgress.selectedClass.initHero( hero );
 	}
 

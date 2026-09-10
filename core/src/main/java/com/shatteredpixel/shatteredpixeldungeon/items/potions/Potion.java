@@ -71,6 +71,7 @@ import com.shatteredpixel.shatteredpixeldungeon.windows.WndOptions;
 import com.shatteredpixel.shatteredpixeldungeon.windows.WndUseItem;
 import com.watabou.noosa.audio.Sample;
 import com.watabou.utils.Bundle;
+import com.watabou.utils.Callback;
 import com.watabou.utils.Random;
 import com.watabou.utils.Reflection;
 
@@ -291,11 +292,29 @@ public class Potion extends Item {
 		
 		hero.spend( TIME_TO_DRINK );
 		hero.busy();
-		apply( hero );
 		
 		Sample.INSTANCE.play( Assets.Sounds.DRINK );
 		
 		hero.sprite.operate( hero.pos );
+
+		// Kohaku: start drink animation (texture swap).
+		// The potion effect (apply) is deferred until the character actually
+		// finishes drinking (end of the "drinking" phase), via the callback.
+		if (hero.heroClass == com.shatteredpixel.shatteredpixeldungeon.actors.hero.HeroClass.DUELIST
+				&& hero.sprite instanceof com.shatteredpixel.shatteredpixeldungeon.sprites.HeroSprite) {
+			final Hero h = hero;
+			// harmful potions (must-throw) get the "bị đánh" hurt reaction instead of "good"
+			boolean beneficial = !mustThrowPots.contains(getClass());
+			((com.shatteredpixel.shatteredpixeldungeon.sprites.HeroSprite) hero.sprite).startDrink(color, this instanceof ExoticPotion, beneficial, new Callback() {
+				@Override
+				public void call() {
+					apply( h );
+				}
+			});
+		} else {
+			// non-Kohaku heroes: apply immediately as before
+			apply( hero );
+		}
 
 		if (!anonymous) {
 			Catalog.countUse(getClass());

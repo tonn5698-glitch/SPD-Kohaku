@@ -61,6 +61,16 @@ public class WndGame extends Window {
 		});
 		curBtn.icon(Icons.get(Icons.PREFS));
 
+		// Kohaku: Character Settings button
+		addButton( curBtn = new RedButton( Messages.get(this, "char_settings") ) {
+			@Override
+			protected void onClick() {
+				hide();
+				GameScene.show(new WndCharSettings());
+			}
+		});
+		curBtn.icon(Icons.get(Icons.TARGET));
+
 		// Challenges window
 		if (Dungeon.challenges > 0) {
 			addButton( curBtn = new RedButton( Messages.get(this, "challenges") ) {

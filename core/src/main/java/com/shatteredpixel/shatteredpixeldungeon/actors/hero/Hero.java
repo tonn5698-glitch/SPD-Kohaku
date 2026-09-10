@@ -212,6 +212,11 @@ public class Hero extends Char {
 	
 	public HeroClass heroClass = HeroClass.ROGUE;
 	public HeroSubClass subClass = HeroSubClass.NONE;
+
+	// Kohaku mod: facing direction (0=DOWN,1=LEFT,2=RIGHT,3=UP)
+	public int facing = 0;
+	// For diagonal movement: store vertical facing to apply when movement stops
+	public int restFacing = -1;
 	public ArmorAbility armorAbility = null;
 	public ArrayList<LinkedHashMap<Talent, Integer>> talents = new ArrayList<>();
 	public LinkedHashMap<Talent, Talent> metamorphedTalents = new LinkedHashMap<>();
@@ -1952,6 +1957,19 @@ public class Hero extends Char {
 				curAction = new HeroAction.Attack( ch );
 			}
 
+			// Kohaku: face target immediately on attack input
+			if (heroClass == HeroClass.DUELIST) {
+				int delta = cell - pos;
+				if      (delta == -1) facing = 1;
+				else if (delta == 1)  facing = 2;
+				else if (delta < 0)   facing = 3;
+				else                  facing = 0;
+
+				if (sprite instanceof HeroSprite) {
+					((HeroSprite) sprite).updateFacing();
+				}
+			}
+
 		//TODO perhaps only trigger this if hero is already adjacent? reducing mistaps
 		} else if (Dungeon.level instanceof MiningLevel &&
 					belongings.getItem(Pickaxe.class) != null &&
@@ -1997,10 +2015,39 @@ public class Hero extends Char {
 
 			curAction = new HeroAction.LvlTransition( cell );
 			
-		}  else {
+		} else {
 			
 			curAction = new HeroAction.Move( cell );
 			lastAction = null;
+
+			// Kohaku: update facing immediately on input (not waiting for move)
+			if (heroClass == HeroClass.DUELIST) {
+				int delta = cell - pos;
+				int width = Dungeon.level.width();
+				boolean isDiagonal = Math.abs(delta) != 1 && Math.abs(delta) != width;
+
+				if (isDiagonal) {
+					// Diagonal: face LEFT/RIGHT during movement, and idle back to
+					// LEFT/RIGHT (matching the horizontal direction) when stopping.
+					if (delta == -1 - width || delta == -1 + width) {
+						facing = 1; // LEFT
+						restFacing = 1; // idle LEFT
+					} else {
+						facing = 2; // RIGHT
+						restFacing = 2; // idle RIGHT
+					}
+				} else {
+					restFacing = -1;
+					if      (delta == -1) facing = 1; // LEFT
+					else if (delta == 1)  facing = 2; // RIGHT
+					else if (delta < 0)   facing = 3; // UP
+					else                  facing = 0; // DOWN
+				}
+
+				if (sprite instanceof HeroSprite) {
+					((HeroSprite) sprite).updateFacing();
+				}
+			}
 			
 		}
 
@@ -2172,6 +2219,27 @@ public class Hero extends Char {
 		
 		curAction = null;
 
+		// Kohaku: play death animation first, then continue death flow
+		if (heroClass == HeroClass.DUELIST
+				&& sprite instanceof com.shatteredpixel.shatteredpixeldungeon.sprites.HeroSprite) {
+			// Paralyse hero so they can't act during death animation
+			sprite.add(CharSprite.State.PARALYSED);
+			final Object deathCause = cause;
+			((com.shatteredpixel.shatteredpixeldungeon.sprites.HeroSprite) sprite)
+				.startDeath(new com.watabou.utils.Callback() {
+					@Override
+					public void call() {
+						sprite.remove(CharSprite.State.PARALYSED);
+						dieAfterAnimation( deathCause );
+					}
+				});
+			return;
+		}
+
+		dieAfterAnimation( cause );
+	}
+
+	private void dieAfterAnimation( Object cause ) {
 		Ankh ankh = null;
 
 		//look for ankhs in player inventory, prioritize ones which are blessed.
@@ -2328,6 +2396,39 @@ public class Hero extends Char {
 	@Override
 	public void move(int step, boolean travelling) {
 		boolean wasHighGrass = Dungeon.level.map[step] == Terrain.HIGH_GRASS;
+
+		// Kohaku mod: calculate facing direction from movement delta
+		if (Dungeon.level != null) {
+			int delta = step - pos;
+			int width = Dungeon.level.width();
+
+			// Detect diagonal: only ±1 (horizontal) and ±width (vertical) are cardinal
+			boolean isDiagonal = Math.abs(delta) != 1 && Math.abs(delta) != width;
+
+			if (isDiagonal) {
+				// Diagonal: face LEFT/RIGHT during tween, and idle back to
+				// LEFT/RIGHT (matching the horizontal direction) when stopping.
+				if (delta == -1 - width || delta == -1 + width) {
+					facing = 1; // LEFT
+					restFacing = 1; // idle LEFT
+				} else {
+					facing = 2; // RIGHT
+					restFacing = 2; // idle RIGHT
+				}
+			} else {
+				// Cardinal direction: normal facing
+				restFacing = -1; // no rest facing needed
+				if      (delta == -1) facing = 1; // LEFT
+				else if (delta == 1)  facing = 2; // RIGHT
+				else if (delta < 0)   facing = 3; // UP
+				else                  facing = 0; // DOWN
+			}
+
+			// Update sprite facing
+			if (sprite instanceof HeroSprite) {
+				((HeroSprite) sprite).updateFacing();
+			}
+		}
 
 		super.move( step, travelling);
 		
