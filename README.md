@@ -1,10 +1,10 @@
-# Shattered Pixel Dungeon
+# Shattered Pixel Dungeon + (SPD-Kohaku)
 
-# Copyright issues | © Bayachao 2023
+> **Cảnh báo bản quyền** — Bất kì khiếu nại bản quyền nào sẽ dẫn đến việc dự án bị đóng cửa và xoá bỏ nội dung liên quan.
 
 ![Copyright](docs/MadeWithMv2.png)
 
-Regarding copyright analysis and infringement avoidance, this project is temporarily closed until it is deemed safe to continue development.
+**Website**: [tonn5698-glitch.github.io/SPD-Kohaku-Web](https://tonn5698-glitch.github.io/SPD-Kohaku-Web/)
 
 Thank you for your attention to my project. 
 
