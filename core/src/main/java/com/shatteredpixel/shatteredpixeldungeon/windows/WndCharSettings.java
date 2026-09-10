@@ -49,6 +49,38 @@ public class WndCharSettings extends Window {
 		drinkSlider.setRect(0, pos, WIDTH, SLIDER_HEIGHT);
 		pos += SLIDER_HEIGHT + GAP;
 
+		// Transform animation duration slider: 5 (0.5s) to 50 (5.0s), default 20 (2.0s)
+		OptionSlider transformSlider = new OptionSlider(
+				Messages.get(this, "transform_duration"),
+				"0.5s",
+				"5.0s",
+				5, 50) {
+			@Override
+			protected void onChange() {
+				SPDSettings.transformDuration(getSelectedValue() / 10f);
+			}
+		};
+		transformSlider.setSelectedValue((int)(SPDSettings.transformDuration() * 10));
+		add(transformSlider);
+		transformSlider.setRect(0, pos, WIDTH, SLIDER_HEIGHT);
+		pos += SLIDER_HEIGHT + GAP;
+
+		// Lose animation duration slider: 5 (0.5s) to 50 (5.0s), default 30 (3.0s)
+		OptionSlider loseSlider = new OptionSlider(
+				Messages.get(this, "lose_anim_duration"),
+				"0.5s",
+				"5.0s",
+				5, 50) {
+			@Override
+			protected void onChange() {
+				SPDSettings.loseAnimDuration(getSelectedValue() / 10f);
+			}
+		};
+		loseSlider.setSelectedValue((int)(SPDSettings.loseAnimDuration() * 10));
+		add(loseSlider);
+		loseSlider.setRect(0, pos, WIDTH, SLIDER_HEIGHT);
+		pos += SLIDER_HEIGHT + GAP;
+
 		resize(WIDTH, (int) pos);
 	}
 }

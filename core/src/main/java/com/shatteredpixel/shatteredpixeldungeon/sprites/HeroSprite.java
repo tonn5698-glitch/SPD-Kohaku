@@ -24,6 +24,7 @@ package com.shatteredpixel.shatteredpixeldungeon.sprites;
 import com.shatteredpixel.shatteredpixeldungeon.Assets;
 import com.shatteredpixel.shatteredpixeldungeon.Dungeon;
 import com.shatteredpixel.shatteredpixeldungeon.SPDSettings;
+import com.shatteredpixel.shatteredpixeldungeon.actors.blobs.Blob;
 import com.shatteredpixel.shatteredpixeldungeon.actors.buffs.HeroDisguise;
 import com.shatteredpixel.shatteredpixeldungeon.actors.hero.Hero;
 import com.shatteredpixel.shatteredpixeldungeon.actors.hero.HeroClass;
@@ -60,6 +61,7 @@ public class HeroSprite extends CharSprite {
 	private static TextureFilm tiers;
 	private static TextureFilm kohakuFilm_; // cached kohaku sheet
 	private static TextureFilm dizzyFilm_; // cached dizzy sheet (debuff)
+	private static TextureFilm dizzyAttackFilm_; // cached dizzy attack sheet (4 cols x 4 rows)
 	private static TextureFilm moniniFilm_; // cached monini walk sheet
 	private static TextureFilm hurtFilm;  // cached: created once, reused
 	private static TextureFilm pullFilm_; // cached pull sheet
@@ -68,9 +70,16 @@ public class HeroSprite extends CharSprite {
 	private Animation fly;
 	private Animation read;
 	private Animation pull;
+	private Animation die_;  // Kohaku death animation (3 sheets × 4 rows)
 	private int lastFacing = -1;
 	private boolean lastDebuffed = false;
 	private TransformState lastTransformState = TransformState.NORMAL;
+
+	// Death animation state
+	private float dieTimer = -1;  // -1 = not dying
+	private int dieSheet = 0;     // which sheet (0=DMZ7, 1=DMZ8, 2=DMZ9)
+	private int dieRow = 0;       // current row (0-3)
+	private Callback dieCallback; // called when death animation finishes
 
 	// Kohaku walk-loop: Hero.ready() calls sprite.idle() between every tile,
 	// which resets curFrame and makes the walk cycle restart each tile.
@@ -111,6 +120,11 @@ public class HeroSprite extends CharSprite {
 	private static final String HURT_PATH = "sprites/kohaku_hurt.png";
 	private static final String PULL_PATH = "sprites/kohaku_pull_down.png";
 	private static final String DIZZY_PATH = "sprites/kohaku_dizzy.png";
+	private static final String[] DIE_PATHS = {
+		"sprites/kohaku_die/$DMZ7.png",
+		"sprites/kohaku_die/$DMZ8.png",
+		"sprites/kohaku_die/$DMZ9.png"
+	};
 	private float hurtTimer = -1;  // -1 = not hurt
 	private String hurtOriginalSheet;
 
@@ -119,7 +133,7 @@ public class HeroSprite extends CharSprite {
 	private TransformState transformState = TransformState.NORMAL;
 	private float transformTimer = -1;
 	private int turnsSinceAttack = 0;
-	private static final float TRANSFORM_DURATION = 0.5f;
+	
 
 // Ensure the GL texture matches the current film state.
 	// After texture(), force re-apply the current animation so frame UVs
@@ -162,6 +176,13 @@ public class HeroSprite extends CharSprite {
 	// Check if hero has any active debuff (for dizzy animation).
 	private static boolean isDebuffed() {
 		if (Dungeon.hero == null) return false;
+		// Low HP also triggers dizzy
+		if (Dungeon.hero.HP > 0 && Dungeon.hero.HP < Dungeon.hero.HT * 0.15f) return true;
+		// Standing in toxic gas triggers dizzy
+		if (Dungeon.level != null && Dungeon.hero.pos >= 0
+				&& Dungeon.level.blobs.containsKey( com.shatteredpixel.shatteredpixeldungeon.actors.blobs.ToxicGas.class )
+				&& Dungeon.level.blobs.get( com.shatteredpixel.shatteredpixeldungeon.actors.blobs.ToxicGas.class ).volume > 0
+				&& Blob.volumeAt( Dungeon.hero.pos, com.shatteredpixel.shatteredpixeldungeon.actors.blobs.ToxicGas.class ) > 0) return true;
 		for (com.shatteredpixel.shatteredpixeldungeon.actors.buffs.Buff b : Dungeon.hero.buffs()) {
 			if (b instanceof com.shatteredpixel.shatteredpixeldungeon.actors.buffs.Poison
 				|| b instanceof com.shatteredpixel.shatteredpixeldungeon.actors.buffs.Burning
@@ -171,7 +192,8 @@ public class HeroSprite extends CharSprite {
 				|| b instanceof com.shatteredpixel.shatteredpixeldungeon.actors.buffs.Doom
 				|| b instanceof com.shatteredpixel.shatteredpixeldungeon.actors.buffs.Chill
 				|| b instanceof com.shatteredpixel.shatteredpixeldungeon.actors.buffs.Frost
-				|| b instanceof com.shatteredpixel.shatteredpixeldungeon.actors.buffs.Corrosion) {
+				|| b instanceof com.shatteredpixel.shatteredpixeldungeon.actors.buffs.Corrosion
+				|| b instanceof com.shatteredpixel.shatteredpixeldungeon.actors.buffs.Roots) {
 				return true;
 			}
 		}
@@ -278,9 +300,15 @@ public class HeroSprite extends CharSprite {
 		int colsPerRow = shortSheet ? 8 : 21;
 		int row = facing * colsPerRow;
 
-		// Idle: RPG Maker stands at frame 0 when not moving
+		// Idle: normal kohaku uses frame 0; dizzy uses frame 1 (standing still,
+		// not the "lifted foot" frame 0 which is the start of the walk cycle).
 		idle = new Animation( 1, true );
-		idle.frames( film, row + 0 );
+		if (debuffed) {
+			// dizzy: frame 1 = idle standing
+			idle.frames( film, row + 1 );
+		} else {
+			idle.frames( film, row + 0 );
+		}
 
 		// Walk: 8 frames at 30fps.
 		// Normal sheet reserves col0 for a dedicated idle pose (cols1-8=walk).
@@ -300,20 +328,34 @@ public class HeroSprite extends CharSprite {
 		die = new Animation( 20, false );
 		die.frames( film, row + 0 );
 
-		// Attack: 12 frames at 30fps — always use kohakuFilm (21 cols)
+		// Attack: use dizzy attack film when debuffed, kohakuFilm otherwise
 		attack = new Animation( ATTACK_FRAMERATE, false );
-		int attackRow = facing * 21; // kohaku always 21 cols
-		attack.frames( kohakuFilm(), attackRow + 9, attackRow + 10, attackRow + 11,
-				attackRow + 12, attackRow + 13, attackRow + 14,
-				attackRow + 15, attackRow + 16, attackRow + 17,
-				attackRow + 18, attackRow + 19, attackRow + 20 );
+		if (debuffed) {
+			// Dizzy attack: 4 cols x 4 rows of 96x96
+			int dizzyAttackRow = facing * 4;
+			attack.frames( dizzyAttackFilm(), dizzyAttackRow, dizzyAttackRow + 1,
+					dizzyAttackRow + 2, dizzyAttackRow + 3 );
+		} else {
+			int attackRow = facing * 21;
+			attack.frames( kohakuFilm(), attackRow + 9, attackRow + 10, attackRow + 11,
+					attackRow + 12, attackRow + 13, attackRow + 14,
+					attackRow + 15, attackRow + 16, attackRow + 17,
+					attackRow + 18, attackRow + 19, attackRow + 20 );
+		}
 
 		zap = attack.clone();
 
-		// Kohaku: operate — always use kohakuFilm
+		// Kohaku: operate
 		operate = new Animation( ATTACK_FRAMERATE, false );
-		operate.frames( kohakuFilm(), attackRow + 15, attackRow + 16, attackRow + 17,
-				attackRow + 18, attackRow + 19, attackRow + 20 );
+		if (debuffed) {
+			int dizzyAttackRow = facing * 4;
+			operate.frames( dizzyAttackFilm(), dizzyAttackRow, dizzyAttackRow + 1,
+					dizzyAttackRow + 2, dizzyAttackRow + 3 );
+		} else {
+			int attackRow = facing * 21;
+			operate.frames( kohakuFilm(), attackRow + 15, attackRow + 16, attackRow + 17,
+					attackRow + 18, attackRow + 19, attackRow + 20 );
+		}
 
 // Kohaku hurt ("bị đánh") animation: 3 cols x 4 rows of 96x96,
 	// row0=DOWN, row1=LEFT, row2=RIGHT, row3=UP (RPG Maker ordering).
@@ -528,7 +570,14 @@ public class HeroSprite extends CharSprite {
 		}
 
 		if (drinkTimer < 0) {
-			hurtOriginalSheet = Dungeon.hero.heroClass.spritesheet();
+			// Save the CURRENT sheet (dizzy or normal) so onComplete(hurt) restores correctly
+			if (isDebuffed()) {
+				hurtOriginalSheet = DIZZY_PATH;
+			} else if (transformState == TransformState.MONINI) {
+				hurtOriginalSheet = "sprites/kohaku_monini/walk.png";
+			} else {
+				hurtOriginalSheet = Dungeon.hero.heroClass.spritesheet();
+			}
 			// Ensure the hurt animation exists (film is static/cached).
 			if (hurt == null || hurt.frames == null || hurt.frames.length == 0) {
 				int hr = Dungeon.hero.facing;
@@ -620,6 +669,9 @@ public class HeroSprite extends CharSprite {
 					}
 					if (drinkBeneficial) {
 						tex = DRINK_PATH + "good.png";
+						// Show heal splash for beneficial drink (waterskin etc.)
+						if (!drinkEffectFired && ch != null && ch.isAlive()) {
+						}
 					} else if (!drinkHurt) {
 						// harmful effect: show the "bị đánh" hurt frame facing DOWN.
 						drinkHurt = true;
@@ -700,6 +752,9 @@ public class HeroSprite extends CharSprite {
 					} else if (!foodSkipGood) {
 						// Normal food: show good
 						tex = DRINK_PATH + "good.png";
+						// Show heal splash for food
+						if (!foodEffectFired && ch != null && ch.isAlive()) {
+						}
 					}
 					// Light food (foodSkipGood=true): no tex → stays on held up → idle
 				}
@@ -753,68 +808,122 @@ public class HeroSprite extends CharSprite {
 		// === Monini transform state machine ===
 		if (transformState == TransformState.TRANSFORMING) {
 			transformTimer += Game.elapsed;
-			// Phase 1: kohaku3 row3 → row2 (first 0.25s)
-			// Phase 2: kougeki_henge row1 → row2 → row3 (remaining)
-			float phase1 = 0.25f;
+			float dur = SPDSettings.transformDuration();
+			float p = Math.min(transformTimer / dur, 1f); // 0..1 progress
+			// Sequence: kohaku2(25%) → kohaku3 row3(12.5%) → row2(12.5%) → henge row1(25%) → henge rows2-3(25%)
 			String tex;
-			if (transformTimer < phase1) {
+			int frameIdx = 0;
+			if (p < 0.25f) {
+				// Phase A: kohaku2 first frame (dizzy idle)
+				tex = DIZZY_PATH;
+				SmartTexture t = TextureCache.get(tex);
+				t.filter(Texture.LINEAR, Texture.LINEAR);
+				texture(t);
+				scale.set(1f, 1f);
+				TextureFilm tf = new TextureFilm(t, KOHAKU_FRAME_WIDTH, KOHAKU_FRAME_HEIGHT);
+				frame(tf.get(0)); // row 0 col 0
+			} else if (p < 0.375f) {
+				// Phase B: kohaku3 row 3 (last row)
 				tex = "sprites/kohaku_transform/kohaku3.png";
-			} else {
+				SmartTexture t = TextureCache.get(tex);
+				t.filter(Texture.LINEAR, Texture.LINEAR);
+				texture(t);
+				scale.set(1f, 1f);
+				TextureFilm tf = new TextureFilm(t, KOHAKU_FRAME_WIDTH, KOHAKU_FRAME_HEIGHT);
+				frame(tf.get(3 * 3)); // row 3 col 0
+			} else if (p < 0.5f) {
+				// Phase C: kohaku3 row 2
+				tex = "sprites/kohaku_transform/kohaku3.png";
+				SmartTexture t = TextureCache.get(tex);
+				t.filter(Texture.LINEAR, Texture.LINEAR);
+				texture(t);
+				scale.set(1f, 1f);
+				TextureFilm tf = new TextureFilm(t, KOHAKU_FRAME_WIDTH, KOHAKU_FRAME_HEIGHT);
+				frame(tf.get(2 * 3)); // row 2 col 0
+			} else if (p < 0.75f) {
+				// Phase D: kougeki_henge row 1
 				tex = "sprites/kohaku_transform/kougeki_henge.png";
-			}
-			SmartTexture t = TextureCache.get(tex);
-			t.filter(Texture.LINEAR, Texture.LINEAR);
-			texture(t);
-			scale.set(1f, 1f);
-			// Select row based on progress
-			TextureFilm tf = new TextureFilm(t, KOHAKU_FRAME_WIDTH, KOHAKU_FRAME_HEIGHT);
-			int frameIdx;
-			if (transformTimer < phase1) {
-				// kohaku3: row3→row2
-				frameIdx = (transformTimer < phase1 / 2) ? 3 * 3 : 2 * 3; // row3 col0 or row2 col0
+				SmartTexture t = TextureCache.get(tex);
+				t.filter(Texture.LINEAR, Texture.LINEAR);
+				texture(t);
+				scale.set(1f, 1f);
+				TextureFilm tf = new TextureFilm(t, KOHAKU_FRAME_WIDTH, KOHAKU_FRAME_HEIGHT);
+				frame(tf.get(1 * 3)); // row 1 col 0
 			} else {
-				float p2 = (transformTimer - phase1) / (TRANSFORM_DURATION - phase1);
-				int r = Math.min((int)(p2 * 3), 2); // row 0,1,2 of kougeki_henge
-				frameIdx = r * 3; // col 0
+				// Phase E: kougeki_henge rows 2-3 (remaining)
+				tex = "sprites/kohaku_transform/kougeki_henge.png";
+				SmartTexture t = TextureCache.get(tex);
+				t.filter(Texture.LINEAR, Texture.LINEAR);
+				texture(t);
+				scale.set(1f, 1f);
+				TextureFilm tf = new TextureFilm(t, KOHAKU_FRAME_WIDTH, KOHAKU_FRAME_HEIGHT);
+				float pE = (p - 0.75f) / 0.25f; // 0..1 within phase E
+				int r = pE < 0.5f ? 2 : 3; // row 2 or row 3
+				frame(tf.get(r * 3)); // col 0
 			}
-			frame(tf.get(frameIdx));
-			if (transformTimer >= TRANSFORM_DURATION) {
+			if (transformTimer >= dur) {
 				transformState = TransformState.MONINI;
 				transformTimer = -1;
 				lastFacing = -1;
-				// texture is still bound to kougeki_henge.png from the line above;
-				// ensureNormalSheet() now sees state==MONINI and binds the actual
-				// monini/walk.png texture, forcing a correct frame in the process.
 				ensureNormalSheet();
 				updateFacing();
 				play( idle, true );
 			}
 		} else if (transformState == TransformState.DE_TRANSFORMING) {
+			// Reverse of transform TO, using kougeki_henge (NOT henge2)
 			transformTimer += Game.elapsed;
-			float phase1 = 0.25f;
+			float dur = SPDSettings.transformDuration();
+			float p = Math.min(transformTimer / dur, 1f);
+			// Reverse: henge rows2-3(25%) → henge row1(25%) → kohaku3 row2(12.5%) → row3(12.5%) → kohaku2(25%)
 			String tex;
-			if (transformTimer < phase1) {
-				tex = "sprites/kohaku_transform/kougeki_henge2.png";
-			} else {
+			if (p < 0.25f) {
+				// Phase A: kougeki_henge rows 2-3 (reverse)
+				tex = "sprites/kohaku_transform/kougeki_henge.png";
+				SmartTexture t = TextureCache.get(tex);
+				t.filter(Texture.LINEAR, Texture.LINEAR);
+				texture(t);
+				scale.set(1f, 1f);
+				TextureFilm tf = new TextureFilm(t, KOHAKU_FRAME_WIDTH, KOHAKU_FRAME_HEIGHT);
+				int r = p < 0.125f ? 3 : 2; // row 3 then row 2
+				frame(tf.get(r * 3));
+			} else if (p < 0.5f) {
+				// Phase B: kougeki_henge row 1
+				tex = "sprites/kohaku_transform/kougeki_henge.png";
+				SmartTexture t = TextureCache.get(tex);
+				t.filter(Texture.LINEAR, Texture.LINEAR);
+				texture(t);
+				scale.set(1f, 1f);
+				TextureFilm tf = new TextureFilm(t, KOHAKU_FRAME_WIDTH, KOHAKU_FRAME_HEIGHT);
+				frame(tf.get(1 * 3)); // row 1 col 0
+			} else if (p < 0.625f) {
+				// Phase C: kohaku3 row 2
 				tex = "sprites/kohaku_transform/kohaku3.png";
-			}
-			SmartTexture t = TextureCache.get(tex);
-			t.filter(Texture.LINEAR, Texture.LINEAR);
-			texture(t);
-			scale.set(1f, 1f);
-			TextureFilm tf = new TextureFilm(t, KOHAKU_FRAME_WIDTH, KOHAKU_FRAME_HEIGHT);
-			int frameIdx;
-			if (transformTimer < phase1) {
-				// kougeki_henge2: row1→row2→row3
-				float p1 = transformTimer / phase1;
-				int r = Math.min((int)(p1 * 3), 2);
-				frameIdx = r * 3;
+				SmartTexture t = TextureCache.get(tex);
+				t.filter(Texture.LINEAR, Texture.LINEAR);
+				texture(t);
+				scale.set(1f, 1f);
+				TextureFilm tf = new TextureFilm(t, KOHAKU_FRAME_WIDTH, KOHAKU_FRAME_HEIGHT);
+				frame(tf.get(2 * 3)); // row 2 col 0
+			} else if (p < 0.75f) {
+				// Phase D: kohaku3 row 3
+				tex = "sprites/kohaku_transform/kohaku3.png";
+				SmartTexture t = TextureCache.get(tex);
+				t.filter(Texture.LINEAR, Texture.LINEAR);
+				texture(t);
+				scale.set(1f, 1f);
+				TextureFilm tf = new TextureFilm(t, KOHAKU_FRAME_WIDTH, KOHAKU_FRAME_HEIGHT);
+				frame(tf.get(3 * 3)); // row 3 col 0
 			} else {
-				// kohaku3: row2→row3
-				frameIdx = (transformTimer < phase1 + 0.125f) ? 2 * 3 : 3 * 3;
+				// Phase E: kohaku2 first frame (dizzy idle)
+				tex = DIZZY_PATH;
+				SmartTexture t = TextureCache.get(tex);
+				t.filter(Texture.LINEAR, Texture.LINEAR);
+				texture(t);
+				scale.set(1f, 1f);
+				TextureFilm tf = new TextureFilm(t, KOHAKU_FRAME_WIDTH, KOHAKU_FRAME_HEIGHT);
+				frame(tf.get(0)); // row 0 col 0
 			}
-			frame(tf.get(frameIdx));
-			if (transformTimer >= TRANSFORM_DURATION) {
+			if (transformTimer >= dur) {
 				transformState = TransformState.NORMAL;
 				transformTimer = -1;
 				ensureNormalSheet();
@@ -835,6 +944,40 @@ public class HeroSprite extends CharSprite {
 			// Check if speed effect started → forward transform
 			if (isSpeedEffect() && drinkTimer < 0) {
 				startTransform();
+			}
+		}
+
+		// === Death animation ===
+		if (dieTimer >= 0) {
+			dieTimer += Game.elapsed;
+			float totalDur = SPDSettings.loseAnimDuration();
+			float ROW_DURATION = totalDur / 12f; // 12 rows total
+			float sheetDuration = ROW_DURATION * 4; // 4 rows per sheet
+			float totalDuration = sheetDuration * 3; // 3 sheets
+
+			if (dieTimer >= totalDuration) {
+				// Death animation complete
+				dieTimer = -1;
+				Callback cb = dieCallback;
+				dieCallback = null;
+				if (cb != null) cb.call();
+			} else {
+				int sheet = (int)(dieTimer / sheetDuration);
+				float rowProgress = (dieTimer % sheetDuration) / ROW_DURATION;
+				int row = Math.min((int)rowProgress, 3);
+
+				if (sheet != dieSheet || row != dieRow) {
+					dieSheet = sheet;
+					dieRow = row;
+					SmartTexture t = TextureCache.get(DIE_PATHS[sheet]);
+					t.filter(Texture.LINEAR, Texture.LINEAR);
+					texture(t);
+					scale.set(1f, 1f);
+					TextureFilm tf = new TextureFilm(t, KOHAKU_FRAME_WIDTH, KOHAKU_FRAME_HEIGHT);
+					// Set curAnim=null FIRST so updateAnimation() won't override this frame
+					curAnim = null;
+					frame(tf.get(row * 3)); // col 0 of current row
+				}
 			}
 		}
 	}
@@ -892,6 +1035,25 @@ public class HeroSprite extends CharSprite {
 		}
 	}
 
+	/**
+	 * Start death animation. Plays 3 sheets × 4 rows, each row 0.25s.
+	 * Total: 3.0s. After completion, calls callback (for death flow).
+	 */
+	public void startDeath(Callback callback) {
+		if (Dungeon.hero.heroClass != HeroClass.DUELIST) return;
+		dieCallback = callback;
+		dieSheet = 0;
+		dieRow = 0;
+		dieTimer = 0;
+		// Play first frame
+		SmartTexture t = TextureCache.get(DIE_PATHS[0]);
+		t.filter(Texture.LINEAR, Texture.LINEAR);
+		texture(t);
+		scale.set(1f, 1f);
+		TextureFilm tf = new TextureFilm(t, KOHAKU_FRAME_WIDTH, KOHAKU_FRAME_HEIGHT);
+		frame(tf.get(0)); // row 0 col 0
+	}
+
 	public void updateFacing() {
 		if (Dungeon.hero == null) return;
 		
@@ -915,7 +1077,12 @@ public class HeroSprite extends CharSprite {
 		int row = newFacing * colsPerRow;
 
 		// Mutate existing Animation objects in place.
-		idle.frames( film, row + 0 );
+		// Dizzy idle = frame 1 (standing), normal idle = frame 0
+		if (currentDebuffed) {
+			idle.frames( film, row + 1 );
+		} else {
+			idle.frames( film, row + 0 );
+		}
 		if (currentDebuffed || transformState == TransformState.MONINI) {
 			run.frames( film, row + 0, row + 1, row + 2, row + 3,
 					row + 4, row + 5, row + 6, row + 7 );
@@ -925,15 +1092,25 @@ public class HeroSprite extends CharSprite {
 		}
 		die.frames( film, row + 1 );
 
-		// Attack/operate always use kohakuFilm (dizzy has no attack frames)
-		int attackRow = newFacing * 21;
-		attack.frames( kohakuFilm(), attackRow + 9, attackRow + 10, attackRow + 11,
-				attackRow + 12, attackRow + 13, attackRow + 14,
-				attackRow + 15, attackRow + 16, attackRow + 17,
-				attackRow + 18, attackRow + 19, attackRow + 20 );
-		zap = attack.clone();
-		operate.frames( kohakuFilm(), attackRow + 15, attackRow + 16, attackRow + 17,
-				attackRow + 18, attackRow + 19, attackRow + 20 );
+		// Attack/operate: use dizzy attack film when debuffed, kohakuFilm otherwise
+		if (currentDebuffed) {
+			// Dizzy attack: 4 cols x 4 rows of 96x96
+			int dizzyAttackRow = newFacing * 4;
+			attack.frames( dizzyAttackFilm(), dizzyAttackRow, dizzyAttackRow + 1,
+					dizzyAttackRow + 2, dizzyAttackRow + 3 );
+			zap = attack.clone();
+			operate.frames( dizzyAttackFilm(), dizzyAttackRow, dizzyAttackRow + 1,
+					dizzyAttackRow + 2, dizzyAttackRow + 3 );
+		} else {
+			int attackRow = newFacing * 21;
+			attack.frames( kohakuFilm(), attackRow + 9, attackRow + 10, attackRow + 11,
+					attackRow + 12, attackRow + 13, attackRow + 14,
+					attackRow + 15, attackRow + 16, attackRow + 17,
+					attackRow + 18, attackRow + 19, attackRow + 20 );
+			zap = attack.clone();
+			operate.frames( kohakuFilm(), attackRow + 15, attackRow + 16, attackRow + 17,
+					attackRow + 18, attackRow + 19, attackRow + 20 );
+		}
 		fly.frames( film, row + 1 );
 		read.frames( film, row + 1 );
 
@@ -948,7 +1125,12 @@ public class HeroSprite extends CharSprite {
 		if (transformState == TransformState.MONINI) {
 			targetTex = TextureCache.get( "sprites/kohaku_monini/walk.png" );
 		} else if (currentDebuffed) {
-			targetTex = TextureCache.get( DIZZY_PATH );
+			// Use dizzy attack texture when attacking, dizzy walk texture otherwise
+			if (curAnim == attack || curAnim == zap || curAnim == operate) {
+				targetTex = TextureCache.get( "sprites/kohaku_dizzy_attack.png" );
+			} else {
+				targetTex = TextureCache.get( DIZZY_PATH );
+			}
 		} else {
 			targetTex = TextureCache.get( Dungeon.hero.heroClass.spritesheet() );
 		}
@@ -986,6 +1168,16 @@ public class HeroSprite extends CharSprite {
 		return dizzyFilm_;
 	}
 
+	/** Cached dizzy attack sheet film (4 cols x 4 rows of 96x96). Row=facing, col=frame. */
+	public static TextureFilm dizzyAttackFilm() {
+		if (dizzyAttackFilm_ == null) {
+			SmartTexture dt = TextureCache.get( "sprites/kohaku_dizzy_attack.png" );
+			dt.filter( Texture.LINEAR, Texture.LINEAR );
+			dizzyAttackFilm_ = new TextureFilm( dt, KOHAKU_FRAME_WIDTH, KOHAKU_FRAME_HEIGHT );
+		}
+		return dizzyAttackFilm_;
+	}
+
 	/** Cached monini walk sheet film (8 cols x 4 rows of 96x96). Used during speed effects. */
 	public static TextureFilm moniniFilm() {
 		if (moniniFilm_ == null) {
@@ -1020,18 +1212,61 @@ public class HeroSprite extends CharSprite {
 		if (hero.buff(HeroDisguise.class) != null){
 			return avatar(hero.buff(HeroDisguise.class).getDisguise(), hero.tier());
 		} else {
+			// Kohaku: use dizzy portrait when debuffed or low HP
+			if (hero.heroClass == HeroClass.DUELIST) {
+				boolean lowHP = hero.HP > 0 && hero.HP < hero.HT * 0.15f;
+				boolean debuffed = false;
+				// Check toxic gas
+				if (Dungeon.level != null && hero.pos >= 0
+						&& Dungeon.level.blobs.containsKey( com.shatteredpixel.shatteredpixeldungeon.actors.blobs.ToxicGas.class )
+						&& Blob.volumeAt( hero.pos, com.shatteredpixel.shatteredpixeldungeon.actors.blobs.ToxicGas.class ) > 0) {
+					debuffed = true;
+				}
+				if (!debuffed) {
+					for (com.shatteredpixel.shatteredpixeldungeon.actors.buffs.Buff b : hero.buffs()) {
+						if (b instanceof com.shatteredpixel.shatteredpixeldungeon.actors.buffs.Poison
+							|| b instanceof com.shatteredpixel.shatteredpixeldungeon.actors.buffs.Burning
+							|| b instanceof com.shatteredpixel.shatteredpixeldungeon.actors.buffs.Ooze
+							|| b instanceof com.shatteredpixel.shatteredpixeldungeon.actors.buffs.Vertigo
+							|| b instanceof com.shatteredpixel.shatteredpixeldungeon.actors.buffs.Slow
+							|| b instanceof com.shatteredpixel.shatteredpixeldungeon.actors.buffs.Doom
+							|| b instanceof com.shatteredpixel.shatteredpixeldungeon.actors.buffs.Chill
+							|| b instanceof com.shatteredpixel.shatteredpixeldungeon.actors.buffs.Frost
+							|| b instanceof com.shatteredpixel.shatteredpixeldungeon.actors.buffs.Corrosion
+							|| b instanceof com.shatteredpixel.shatteredpixeldungeon.actors.buffs.Roots) {
+							debuffed = true;
+							break;
+						}
+					}
+				}
+				if (lowHP || debuffed) {
+					Image avatar = new Image( "sprites/kohaku_dizzy_portrait.png" );
+					avatar.scale.set( FRAME_HEIGHT / (float) KOHAKU_FRAME_HEIGHT );
+					return avatar;
+				}
+			}
 			return avatar(hero.heroClass, hero.tier());
 		}
 	}
 	
 	public static Image avatar( HeroClass cl, int armorTier ) {
-		
+
+		// Kohaku: use dedicated portrait sprite (96x96 idle face-down),
+		// scaled to match standard 12x15 avatar slot.
+		if (cl == HeroClass.DUELIST) {
+			Image avatar = new Image( "sprites/kohaku_portrait.png" );
+			// Scale so visual size matches the standard avatar (~28px tall).
+			// frame() already set width=height=96 from the 96x96 texture.
+			avatar.scale.set( FRAME_HEIGHT / (float) KOHAKU_FRAME_HEIGHT );
+			return avatar;
+		}
+
 		RectF patch = tiers().get( armorTier );
 		Image avatar = new Image( cl.spritesheet() );
 		RectF frame = avatar.texture.uvRect( 1, 0, FRAME_WIDTH, FRAME_HEIGHT );
 		frame.shift( patch.left, patch.top );
 		avatar.frame( frame );
-		
+
 		return avatar;
 	}
 }

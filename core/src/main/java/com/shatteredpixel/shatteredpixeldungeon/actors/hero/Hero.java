@@ -2176,6 +2176,27 @@ public class Hero extends Char {
 		
 		curAction = null;
 
+		// Kohaku: play death animation first, then continue death flow
+		if (heroClass == HeroClass.DUELIST
+				&& sprite instanceof com.shatteredpixel.shatteredpixeldungeon.sprites.HeroSprite) {
+			// Paralyse hero so they can't act during death animation
+			sprite.add(CharSprite.State.PARALYSED);
+			final Object deathCause = cause;
+			((com.shatteredpixel.shatteredpixeldungeon.sprites.HeroSprite) sprite)
+				.startDeath(new com.watabou.utils.Callback() {
+					@Override
+					public void call() {
+						sprite.remove(CharSprite.State.PARALYSED);
+						dieAfterAnimation( deathCause );
+					}
+				});
+			return;
+		}
+
+		dieAfterAnimation( cause );
+	}
+
+	private void dieAfterAnimation( Object cause ) {
 		Ankh ankh = null;
 
 		//look for ankhs in player inventory, prioritize ones which are blessed.

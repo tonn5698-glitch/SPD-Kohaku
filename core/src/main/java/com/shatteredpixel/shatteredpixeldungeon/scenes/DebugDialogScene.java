@@ -44,22 +44,21 @@ public class DebugDialogScene extends Scene {
 
 		switch (index) {
 			case 0:
-				addToFront(new WndRPGDialog("Kohaku", "faces/kohaku_a1.png",
+				addToFront(new WndRPGDialog("Kohaku",
 						"Xin chào.",
 						nextStep()));
 				break;
 			case 1:
-				addToFront(new WndRPGDialog("Kohaku", "faces/kohaku_a4.png",
+				addToFront(new WndRPGDialog("Kohaku",
 						"Mình là _KOHAKU_.",
 						nextStep()));
 				break;
 			case 2:
-				addToFront(new WndRPGDialog("Kohaku", "faces/kohaku_a5.png",
+				addToFront(new WndRPGDialog("Kohaku",
 						"_Rất vui_ khi được gặp bạn.",
 						new Runnable() {
 							@Override
 							public void run() {
-								// fade out and return to title
 								ShatteredPixelDungeon.switchScene(TitleScene.class);
 							}
 						}));

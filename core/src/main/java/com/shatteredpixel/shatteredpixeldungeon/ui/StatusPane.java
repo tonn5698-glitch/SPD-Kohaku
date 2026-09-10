@@ -56,6 +56,7 @@ public class StatusPane extends Component {
 	public static final float FLASH_RATE = (float)(Math.PI*1.5f); //1.5 blinks per second
 
 	private int lastTier = 0;
+	private boolean lastAvatarDizzy = false;
 
 	private Image shieldHP;
 	private Image hp;
@@ -371,6 +372,38 @@ public class StatusPane extends Component {
 		if (tier != lastTier) {
 			lastTier = tier;
 			avatar.copy( HeroSprite.avatar( Dungeon.hero ) );
+		}
+
+		// Refresh avatar when dizzy state changes (low HP or debuff)
+		if (Dungeon.hero.heroClass == com.shatteredpixel.shatteredpixeldungeon.actors.hero.HeroClass.DUELIST) {
+			boolean isDizzy = Dungeon.hero.HP > 0 && Dungeon.hero.HP < Dungeon.hero.HT * 0.15f;
+			// Check toxic gas
+			if (!isDizzy && Dungeon.level != null && Dungeon.hero.pos >= 0
+					&& Dungeon.level.blobs.containsKey( com.shatteredpixel.shatteredpixeldungeon.actors.blobs.ToxicGas.class )
+					&& com.shatteredpixel.shatteredpixeldungeon.actors.blobs.Blob.volumeAt( Dungeon.hero.pos, com.shatteredpixel.shatteredpixeldungeon.actors.blobs.ToxicGas.class ) > 0) {
+				isDizzy = true;
+			}
+			if (!isDizzy) {
+				for (com.shatteredpixel.shatteredpixeldungeon.actors.buffs.Buff b : Dungeon.hero.buffs()) {
+					if (b instanceof com.shatteredpixel.shatteredpixeldungeon.actors.buffs.Poison
+						|| b instanceof com.shatteredpixel.shatteredpixeldungeon.actors.buffs.Burning
+						|| b instanceof com.shatteredpixel.shatteredpixeldungeon.actors.buffs.Ooze
+						|| b instanceof com.shatteredpixel.shatteredpixeldungeon.actors.buffs.Vertigo
+						|| b instanceof com.shatteredpixel.shatteredpixeldungeon.actors.buffs.Slow
+						|| b instanceof com.shatteredpixel.shatteredpixeldungeon.actors.buffs.Doom
+						|| b instanceof com.shatteredpixel.shatteredpixeldungeon.actors.buffs.Chill
+						|| b instanceof com.shatteredpixel.shatteredpixeldungeon.actors.buffs.Frost
+						|| b instanceof com.shatteredpixel.shatteredpixeldungeon.actors.buffs.Corrosion
+						|| b instanceof com.shatteredpixel.shatteredpixeldungeon.actors.buffs.Roots) {
+						isDizzy = true;
+						break;
+					}
+				}
+			}
+			if (isDizzy != lastAvatarDizzy) {
+				lastAvatarDizzy = isDizzy;
+				updateAvatar();
+			}
 		}
 
 		counter.setSweep((1f - Actor.now()%1f)%1f);

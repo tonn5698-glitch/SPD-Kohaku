@@ -76,7 +76,6 @@ public class Food extends Item {
 			detach( hero.belongings.backpack );
 			Catalog.countUse(getClass());
 			
-			satisfy(hero);
 			GLog.i( Messages.get(this, "eat_msg") );
 			
 			hero.sprite.operate( hero.pos );
@@ -86,15 +85,22 @@ public class Food extends Item {
 			
 			hero.spend( eatingTime() );
 
-			// Kohaku: start food eating animation
+			// Kohaku: start food eating animation, defer satisfy() to good phase
 			if (hero.heroClass == com.shatteredpixel.shatteredpixeldungeon.actors.hero.HeroClass.DUELIST
 					&& hero.sprite instanceof com.shatteredpixel.shatteredpixeldungeon.sprites.HeroSprite) {
 				String foodName = getFoodName();
 				boolean harmful = this instanceof MysteryMeat;
-				boolean skipHeldUp = false; // all foods have held up now
+				boolean skipHeldUp = false;
 				boolean skipGood = isLightFood();
+				final Hero h = hero;
 				((com.shatteredpixel.shatteredpixeldungeon.sprites.HeroSprite) hero.sprite)
-					.startFood(foodName, harmful, skipHeldUp, skipGood, null);
+					.startFood(foodName, harmful, skipHeldUp, skipGood, new com.watabou.utils.Callback() {
+						@Override public void call() {
+							satisfy( h );
+						}
+					});
+			} else {
+				satisfy( hero );
 			}
 
 			Talent.onFoodEaten(hero, energy, this);
