@@ -24,6 +24,7 @@ package com.shatteredpixel.shatteredpixeldungeon.sprites;
 import com.shatteredpixel.shatteredpixeldungeon.Assets;
 import com.shatteredpixel.shatteredpixeldungeon.Dungeon;
 import com.shatteredpixel.shatteredpixeldungeon.SPDSettings;
+import com.shatteredpixel.shatteredpixeldungeon.actors.Char;
 import com.shatteredpixel.shatteredpixeldungeon.actors.blobs.Blob;
 import com.shatteredpixel.shatteredpixeldungeon.actors.buffs.HeroDisguise;
 import com.shatteredpixel.shatteredpixeldungeon.actors.hero.Hero;
@@ -37,6 +38,7 @@ import com.watabou.noosa.Game;
 import com.watabou.noosa.Image;
 import com.watabou.noosa.MovieClip;
 import com.watabou.noosa.TextureFilm;
+import com.watabou.noosa.audio.Sample;
 import com.watabou.utils.Callback;
 import com.watabou.utils.PointF;
 import com.watabou.utils.RectF;
@@ -121,10 +123,13 @@ public class HeroSprite extends CharSprite {
 	private static final String PULL_PATH = "sprites/kohaku_pull_down.png";
 	private static final String DIZZY_PATH = "sprites/kohaku_dizzy.png";
 	private static final String[] DIE_PATHS = {
-		"sprites/kohaku_die/$DMZ7.png",
-		"sprites/kohaku_die/$DMZ8.png",
-		"sprites/kohaku_die/$DMZ9.png"
+		"sprites/kohaku_die/DMZ7.png",
+		"sprites/kohaku_die/DMZ8.png",
+		"sprites/kohaku_die/DMZ9.png"
 	};
+	// Post-death transform frames
+	private static final String HENGE_PATH = "sprites/kohaku_transform/kougeki_henge.png";
+	private static final String KOHAKU3_PATH = "sprites/kohaku_transform/kohaku3.png";
 	private float hurtTimer = -1;  // -1 = not hurt
 	private String hurtOriginalSheet;
 
@@ -152,7 +157,12 @@ public class HeroSprite extends CharSprite {
 		if (transformState == TransformState.MONINI) {
 			targetTex = TextureCache.get("sprites/kohaku_monini/walk.png");
 		} else if (isDebuffed()) {
-			targetTex = TextureCache.get(DIZZY_PATH);
+			// Use dizzy attack texture when attacking, dizzy walk otherwise
+			if (curAnim == attack || curAnim == zap || curAnim == operate) {
+				targetTex = TextureCache.get("sprites/kohaku_dizzy_attack.png");
+			} else {
+				targetTex = TextureCache.get(DIZZY_PATH);
+			}
 		} else {
 			targetTex = TextureCache.get(normal);
 		}
@@ -384,9 +394,7 @@ public class HeroSprite extends CharSprite {
 	}
 	
 	// Kohaku sheet frames are 96x96 but the hero is drawn at 16x16.
-	// Keep the sprite logically 16x16 so worldToCamera()/center()/emitters use
-	// the true on-screen box; the 96x96 texture region is downsampled onto the
-	// 16x16 quad by the LINEAR texture filter (smarttexture filter set elsewhere).
+	// frame() below always shrinks to LOGICAL_SIZE — die() relies on this too now.
 	@Override
 	public void frame( RectF rect ) {
 		super.frame( rect );
@@ -469,6 +477,22 @@ public class HeroSprite extends CharSprite {
 	}
 
 	@Override
+	public void link( Char ch ) {
+		// super.link() gọi turnTo(pos, ô ngẫu nhiên) để set flip mặc định.
+		// turnTo() của Kohaku lại hiểu đích ngẫu nhiên đó thành hướng thật và
+		// ghi đè Dungeon.hero.facing -> facing random mỗi lần app resume
+		// (scene rebuild sau khi bị swipe/kill). Lưu lại facing thật, phục hồi
+		// sau khi super.link() chạy xong.
+		int savedFacing = (ch instanceof Hero) ? ((Hero) ch).facing : -1;
+		super.link( ch );
+		if (ch instanceof Hero && ((Hero) ch).heroClass == HeroClass.DUELIST && savedFacing != -1) {
+			((Hero) ch).facing = savedFacing;
+			lastFacing = -1;
+			updateFacing();
+		}
+	}
+
+	@Override
 	public synchronized void attack( int cell, Callback callback ) {
 		ensureNormalSheet();
 		onAttackAction(); // track turns for monini de-transform
@@ -531,9 +555,11 @@ public class HeroSprite extends CharSprite {
 			idleGrace = -1;
 		}
 		super.onComplete( anim );
-		// The base CharSprite only auto-returns to idle for attack/operate.
-		// zap isn't handled there, so force the idle return explicitly.
-		if (anim == zap) {
+		// The base CharSprite only auto-returns to idle for attack/operate
+		// when there's no animCallback. When a callback IS set, it executes
+		// the callback and returns without idle() — leaving the sprite stuck
+		// on the last frame. Force idle() here for all combat/action anims.
+		if (anim == attack || anim == operate || anim == zap) {
 			idle();
 		}
 		// Hurt ("bị đánh") flash done -> restore the normal hero sheet.
@@ -597,12 +623,99 @@ public class HeroSprite extends CharSprite {
 	public void update() {
 		sleeping = ch.isAlive() && ((Hero)ch).resting;
 
-		// CRITICAL: sync texture BEFORE super.update() so that when
-		// MovieClip.updateAnimation() calls frame(), the GL texture matches
-		// the film's UV indices. Delegates to ensureNormalSheet() so the
-		// frame()-force fix lives in one place instead of being duplicated
-		// (a duplicate here previously reintroduced the full-sheet bug,
-		// since it swapped texture without ever forcing frame() back).
+		// Death animation: skip normal sprite logic entirely
+		if (dieTimer >= 0) {
+			dieTimer += Game.elapsed;
+			float totalDur = SPDSettings.loseAnimDuration() * 0.5f; // 50% faster
+			float ROW_DURATION = totalDur / 12f;
+			float sheetDuration = ROW_DURATION * 4;
+			float totalDuration = sheetDuration * 3;
+
+			// Post-death: 3 transform frames (henge → kohaku3 → kohaku3)
+			float POST_FRAME_DURATION = 0.25f; // 0.25s per frame (50% faster)
+			float postStart = totalDuration;
+			float postEnd = postStart + POST_FRAME_DURATION * 3;
+
+			// Bất kỳ flash() nào gọi trong lúc đang chết đều bị đè lại ngay tick sau
+			if (ra != 0f || ga != 0f || ba != 0f || flashTime != 0f) {
+				resetColor();
+				flashTime = 0;
+			}
+
+			if (dieTimer >= postEnd) {
+				// Death sequence complete — hide sprite + tombstone + tomb sound + callback
+				dieTimer = -1;
+				visible = false;
+
+				int heroPos = (ch != null) ? ch.pos : -1;
+
+				// Play tomb sound
+				if (Dungeon.level != null && Dungeon.level.heroFOV != null
+						&& heroPos >= 0 && Dungeon.level.heroFOV[heroPos]) {
+					Sample.INSTANCE.play(Assets.Sounds.TOMB);
+				}
+
+				// Spawn tombstone heap at hero's last position
+				if (heroPos >= 0 && Dungeon.level != null) {
+					com.shatteredpixel.shatteredpixeldungeon.items.Heap heap =
+						Dungeon.level.drop(new com.shatteredpixel.shatteredpixeldungeon.items.Gold(0), heroPos);
+					heap.type = com.shatteredpixel.shatteredpixeldungeon.items.Heap.Type.TOMB;
+					heap.hidden = false;
+					// Refresh sprite to show tombstone icon
+					if (heap.sprite != null) {
+						heap.sprite.view(heap).place(heroPos);
+						heap.sprite.drop();
+					}
+				}
+
+				Callback cb = dieCallback;
+				dieCallback = null;
+				if (cb != null) cb.call();
+			} else if (dieTimer >= postStart) {
+				// Post-death transform frames
+				int postFrame = (int)((dieTimer - postStart) / POST_FRAME_DURATION);
+				postFrame = Math.min(postFrame, 2); // 0, 1, 2
+
+				SmartTexture t;
+				int row;
+				int col = 0; // col 0 for all frames
+
+				if (postFrame == 0) {
+					// kougeki_henge row 1, col 0
+					t = TextureCache.get(HENGE_PATH);
+					row = 1;
+				} else {
+					// kohaku3 row 1 then row 0
+					t = TextureCache.get(KOHAKU3_PATH);
+					row = (postFrame == 1) ? 1 : 0;
+				}
+
+				t.filter(Texture.LINEAR, Texture.LINEAR);
+				texture(t);
+				TextureFilm tf = new TextureFilm(t, KOHAKU_FRAME_WIDTH, KOHAKU_FRAME_HEIGHT);
+				curAnim = null;
+				frame(tf.get(row * 3 + col));
+			} else {
+				// Main death animation (12 rows × 3 sheets)
+				int sheet = (int)(dieTimer / sheetDuration);
+				float rowProgress = (dieTimer % sheetDuration) / ROW_DURATION;
+				int row = Math.min((int)rowProgress, 3);
+
+				if (sheet != dieSheet || row != dieRow) {
+					dieSheet = sheet;
+					dieRow = row;
+					SmartTexture t = TextureCache.get(DIE_PATHS[sheet]);
+					t.filter(Texture.LINEAR, Texture.LINEAR);
+					texture(t);
+					TextureFilm tf = new TextureFilm(t, KOHAKU_FRAME_WIDTH, KOHAKU_FRAME_HEIGHT);
+					curAnim = null;
+					frame(tf.get(row * 3));
+				}
+			}
+			return;
+		}
+
+		// CRITICAL: sync texture BEFORE super.update()
 		if (Dungeon.hero != null && Dungeon.hero.heroClass == HeroClass.DUELIST
 				&& drinkTimer < 0 && foodTimer < 0 && curAnim != hurt) {
 			ensureNormalSheet();
@@ -946,40 +1059,6 @@ public class HeroSprite extends CharSprite {
 				startTransform();
 			}
 		}
-
-		// === Death animation ===
-		if (dieTimer >= 0) {
-			dieTimer += Game.elapsed;
-			float totalDur = SPDSettings.loseAnimDuration();
-			float ROW_DURATION = totalDur / 12f; // 12 rows total
-			float sheetDuration = ROW_DURATION * 4; // 4 rows per sheet
-			float totalDuration = sheetDuration * 3; // 3 sheets
-
-			if (dieTimer >= totalDuration) {
-				// Death animation complete
-				dieTimer = -1;
-				Callback cb = dieCallback;
-				dieCallback = null;
-				if (cb != null) cb.call();
-			} else {
-				int sheet = (int)(dieTimer / sheetDuration);
-				float rowProgress = (dieTimer % sheetDuration) / ROW_DURATION;
-				int row = Math.min((int)rowProgress, 3);
-
-				if (sheet != dieSheet || row != dieRow) {
-					dieSheet = sheet;
-					dieRow = row;
-					SmartTexture t = TextureCache.get(DIE_PATHS[sheet]);
-					t.filter(Texture.LINEAR, Texture.LINEAR);
-					texture(t);
-					scale.set(1f, 1f);
-					TextureFilm tf = new TextureFilm(t, KOHAKU_FRAME_WIDTH, KOHAKU_FRAME_HEIGHT);
-					// Set curAnim=null FIRST so updateAnimation() won't override this frame
-					curAnim = null;
-					frame(tf.get(row * 3)); // col 0 of current row
-				}
-			}
-		}
 	}
 	
 	public void sprint( float speed ) {
@@ -1041,6 +1120,12 @@ public class HeroSprite extends CharSprite {
 	 */
 	public void startDeath(Callback callback) {
 		if (Dungeon.hero.heroClass != HeroClass.DUELIST) return;
+		// Đòn kết liễu gọi flash() ngay trước die() -> ra/ga/ba kẹt trắng suốt
+		// animation vì update() return sớm khi dieTimer>=0, không bao giờ chạm
+		// tới đoạn decay flashTime/resetColor() của CharSprite. Clear ở đây.
+		resetColor();
+		flashTime = 0;
+
 		dieCallback = callback;
 		dieSheet = 0;
 		dieRow = 0;
