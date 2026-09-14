@@ -95,6 +95,8 @@ import com.shatteredpixel.shatteredpixeldungeon.items.scrolls.ScrollOfTeleportat
 import com.shatteredpixel.shatteredpixeldungeon.items.scrolls.ScrollOfTerror;
 import com.shatteredpixel.shatteredpixeldungeon.items.scrolls.ScrollOfTransmutation;
 import com.shatteredpixel.shatteredpixeldungeon.items.scrolls.ScrollOfUpgrade;
+import com.shatteredpixel.shatteredpixeldungeon.items.scrolls.ScrollOfHint;
+import com.shatteredpixel.shatteredpixeldungeon.items.scrolls.ScrollOfSecret;
 import com.shatteredpixel.shatteredpixeldungeon.items.scrolls.exotic.ExoticScroll;
 import com.shatteredpixel.shatteredpixeldungeon.items.spells.Spell;
 import com.shatteredpixel.shatteredpixeldungeon.items.stones.Runestone;
@@ -359,23 +361,25 @@ public class Generator {
 			SEED.defaultProbs = new float[]{ 0, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1 };
 			SEED.probs = SEED.defaultProbs.clone();
 			
-			SCROLL.classes = new Class<?>[]{
-					ScrollOfUpgrade.class, //3 drop every chapter, see Dungeon.souNeeded()
-					ScrollOfIdentify.class,
-					ScrollOfRemoveCurse.class,
-					ScrollOfMirrorImage.class,
-					ScrollOfRecharging.class,
-					ScrollOfTeleportation.class,
-					ScrollOfLullaby.class,
-					ScrollOfMagicMapping.class,
-					ScrollOfRage.class,
-					ScrollOfRetribution.class,
-					ScrollOfTerror.class,
-					ScrollOfTransmutation.class
-			};
-			SCROLL.defaultProbs  = new float[]{ 0, 3, 2, 1, 2, 1, 1, 1, 1, 1, 1, 1 };
-			SCROLL.defaultProbs2 = new float[]{ 0, 3, 2, 2, 1, 2, 1, 1, 1, 1, 1, 0 };
-			SCROLL.probs = SCROLL.defaultProbs.clone();
+		SCROLL.classes = new Class<?>[]{
+				ScrollOfUpgrade.class, //3 drop every chapter, see Dungeon.souNeeded()
+				ScrollOfIdentify.class,
+				ScrollOfRemoveCurse.class,
+				ScrollOfMirrorImage.class,
+				ScrollOfRecharging.class,
+				ScrollOfTeleportation.class,
+				ScrollOfLullaby.class,
+				ScrollOfMagicMapping.class,
+				ScrollOfRage.class,
+				ScrollOfRetribution.class,
+				ScrollOfTerror.class,
+				ScrollOfTransmutation.class,
+				ScrollOfHint.class,
+				ScrollOfSecret.class
+		};
+		SCROLL.defaultProbs  = new float[]{ 0, 3, 2, 1, 2, 1, 1, 1, 1, 1, 1, 1, 1, 1 };
+		SCROLL.defaultProbs2 = new float[]{ 0, 3, 2, 2, 1, 2, 1, 1, 1, 1, 1, 0, 1, 1 };
+		SCROLL.probs = SCROLL.defaultProbs.clone();
 			
 			STONE.classes = new Class<?>[]{
 					StoneOfEnchantment.class,   //1 is guaranteed to drop on floors 6-19
@@ -534,12 +538,12 @@ public class Generator {
 			MIS_T5.defaultProbs = new float[]{ 3, 3, 3 };
 			MIS_T5.probs = MIS_T5.defaultProbs.clone();
 			
-			FOOD.classes = new Class<?>[]{
-					Food.class,
-					Pasty.class,
-					MysteryMeat.class };
-			FOOD.defaultProbs = new float[]{ 4, 1, 0 };
-			FOOD.probs = FOOD.defaultProbs.clone();
+		FOOD.classes = new Class<?>[]{
+				Food.class,
+				Pasty.class,
+				MysteryMeat.class };
+		FOOD.defaultProbs = new float[]{ 5, 1.2f, 0 };
+		FOOD.probs = FOOD.defaultProbs.clone();
 			
 			RING.classes = new Class<?>[]{
 					RingOfAccuracy.class,

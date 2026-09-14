@@ -649,14 +649,25 @@ public class HeroSprite extends CharSprite {
 
 				int heroPos = (ch != null) ? ch.pos : -1;
 
+				// Check if hero has Ankh (no tombstone if resurrecting)
+				boolean hasAnkh = false;
+				if (ch instanceof com.shatteredpixel.shatteredpixeldungeon.actors.hero.Hero) {
+					com.shatteredpixel.shatteredpixeldungeon.actors.hero.Hero hero =
+						(com.shatteredpixel.shatteredpixeldungeon.actors.hero.Hero) ch;
+					for (com.shatteredpixel.shatteredpixeldungeon.items.Ankh ankh : hero.belongings.getAllItems(com.shatteredpixel.shatteredpixeldungeon.items.Ankh.class)) {
+						hasAnkh = true;
+						break;
+					}
+				}
+
 				// Play tomb sound
-				if (Dungeon.level != null && Dungeon.level.heroFOV != null
+				if (!hasAnkh && Dungeon.level != null && Dungeon.level.heroFOV != null
 						&& heroPos >= 0 && Dungeon.level.heroFOV[heroPos]) {
 					Sample.INSTANCE.play(Assets.Sounds.TOMB);
 				}
 
-				// Spawn tombstone heap at hero's last position
-				if (heroPos >= 0 && Dungeon.level != null) {
+				// Spawn tombstone heap at hero's last position (only if no Ankh)
+				if (!hasAnkh && heroPos >= 0 && Dungeon.level != null) {
 					com.shatteredpixel.shatteredpixeldungeon.items.Heap heap =
 						Dungeon.level.drop(new com.shatteredpixel.shatteredpixeldungeon.items.Gold(0), heroPos);
 					heap.type = com.shatteredpixel.shatteredpixeldungeon.items.Heap.Type.TOMB;

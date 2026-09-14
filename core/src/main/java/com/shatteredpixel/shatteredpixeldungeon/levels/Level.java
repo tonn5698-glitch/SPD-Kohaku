@@ -75,6 +75,7 @@ import com.shatteredpixel.shatteredpixeldungeon.items.artifacts.TalismanOfForesi
 import com.shatteredpixel.shatteredpixeldungeon.items.artifacts.TimekeepersHourglass;
 import com.shatteredpixel.shatteredpixeldungeon.items.bombs.Bomb;
 import com.shatteredpixel.shatteredpixeldungeon.items.potions.PotionOfStrength;
+import com.shatteredpixel.shatteredpixeldungeon.items.scrolls.ScrollOfSecret;
 import com.shatteredpixel.shatteredpixeldungeon.items.scrolls.ScrollOfUpgrade;
 import com.shatteredpixel.shatteredpixeldungeon.items.scrolls.exotic.ScrollOfChallenge;
 import com.shatteredpixel.shatteredpixeldungeon.items.stones.StoneOfEnchantment;
@@ -275,7 +276,10 @@ public abstract class Level implements Bundlable {
 						break;
 					case 4:
 						feeling = Feeling.LARGE;
-						addItemToSpawn(Generator.random(Generator.Category.FOOD));
+		addItemToSpawn(Generator.random(Generator.Category.FOOD));
+		if (Random.Float() < 0.2f) {
+			addItemToSpawn(Generator.random(Generator.Category.FOOD));
+		}
 						break;
 					case 5:
 						feeling = Feeling.TRAPS;
@@ -1040,6 +1044,8 @@ public abstract class Level implements Bundlable {
 		}
 		
 		if (Dungeon.level != null && ShatteredPixelDungeon.scene() instanceof GameScene) {
+			//lets a Scroll of Secret already sitting in this heap identify the item that just landed here
+			ScrollOfSecret.tryIdentifyAt( cell, item );
 			pressCell( cell );
 		}
 		

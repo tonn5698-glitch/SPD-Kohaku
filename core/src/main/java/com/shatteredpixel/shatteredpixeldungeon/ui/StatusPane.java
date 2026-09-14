@@ -73,6 +73,7 @@ public class StatusPane extends Component {
 
 	private BuffIndicator buffs;
 	private Compass compass;
+	private HintCompass hintCompass;
 
 	private BusyIndicator busy;
 	private CircleArc counter;
@@ -135,6 +136,9 @@ public class StatusPane extends Component {
 		compass = new Compass( Statistics.amuletObtained ? Dungeon.level.entrance() : Dungeon.level.exit() );
 		add( compass );
 
+		hintCompass = new HintCompass();
+		add( hintCompass );
+
 		if (large)  shieldHP = new Image(asset, 0, 112, 128, 9);
 		else        shieldHP = new Image(asset, 0, 44, 50, 4);
 		add(shieldHP);
@@ -175,6 +179,12 @@ public class StatusPane extends Component {
 		level.hardlight( 0xFFFFAA );
 		add( level );
 
+		// Kohaku: LV flash text
+		lvFlashText = PixelScene.renderTextBlock("+LV", 9);
+		lvFlashText.hardlight( 0xFFFF00 );
+		lvFlashText.alpha(0);
+		add( lvFlashText );
+
 		buffs = new BuffIndicator( Dungeon.hero, large );
 		add( buffs );
 
@@ -207,6 +217,8 @@ public class StatusPane extends Component {
 		compass.x = avatar.x + avatar.width / 2f - compass.origin.x;
 		compass.y = avatar.y + avatar.height / 2f - compass.origin.y;
 		PixelScene.align(compass);
+
+		hintCompass.setPos(compass.x - 4, compass.y - 5);
 
 		if (large) {
 			exp.x = x + 30;
@@ -294,6 +306,11 @@ public class StatusPane extends Component {
 	private int oldShield = 0;
 	private int oldMax = 0;
 
+	// Kohaku: LV flash + low HP red flash
+	private float lvFlashTimer = 0;
+	private static final float LV_FLASH_DURATION = 2.0f;
+	private RenderedTextBlock lvFlashText;
+
 	@Override
 	public void update() {
 		super.update();
@@ -362,6 +379,8 @@ public class StatusPane extends Component {
 
 			if (lastLvl != -1) {
 				showStarParticles();
+				// Kohaku: show "+LV" flash
+				lvFlashTimer = LV_FLASH_DURATION;
 			}
 
 			lastLvl = Dungeon.hero.lvl;
@@ -419,6 +438,26 @@ public class StatusPane extends Component {
 		}
 
 		counter.setSweep((1f - Actor.now()%1f)%1f);
+
+		// Kohaku: LV flash effect
+		if (lvFlashTimer > 0) {
+			lvFlashTimer -= Game.elapsed;
+			float alpha = Math.min(1f, lvFlashTimer / 0.5f);
+			lvFlashText.alpha(alpha);
+			// Position above the status bar
+			lvFlashText.setPos(x + bg.width() + 4, y + 2);
+			PixelScene.align(lvFlashText);
+		} else {
+			lvFlashText.alpha(0);
+		}
+
+		// Kohaku: low HP red flash on entire frame
+		if (Dungeon.hero.isAlive() && (health/(float)max) < 0.15f) {
+			float pulse = (float)Math.abs(Math.sin(Game.timeTotal * 4));
+			bg.hardlight(1f, 1f - pulse * 0.4f, 1f - pulse * 0.4f);
+		} else {
+			bg.resetColor();
+		}
 	}
 
 	public void updateAvatar(){

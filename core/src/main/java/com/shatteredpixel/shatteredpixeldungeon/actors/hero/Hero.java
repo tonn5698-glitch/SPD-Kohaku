@@ -2267,6 +2267,14 @@ public class Hero extends Char {
 
 				ankh.detach(belongings.backpack);
 
+				// Reset sprite after resurrection
+				if (sprite instanceof com.shatteredpixel.shatteredpixeldungeon.sprites.HeroSprite) {
+					com.shatteredpixel.shatteredpixeldungeon.sprites.HeroSprite heroSprite =
+						(com.shatteredpixel.shatteredpixeldungeon.sprites.HeroSprite) sprite;
+					heroSprite.visible = true;
+					heroSprite.place(pos);
+				}
+
 				for (Char ch : Actor.chars()) {
 					if (ch instanceof DriedRose.GhostHero) {
 						((DriedRose.GhostHero) ch).sayAnhk();
