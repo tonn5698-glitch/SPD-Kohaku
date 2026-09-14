@@ -211,6 +211,11 @@ public class ScrollOfHint extends Scroll {
 		SpellSprite.show(curUser, SpellSprite.MAP);
 		Sample.INSTANCE.play(Assets.Sounds.READ);
 		
+		// Deduct energy when scroll is used
+		if (energy > 0) {
+			energy--;
+		}
+		
 		readAnimation();
 	}
 	
