@@ -28,6 +28,7 @@ import com.shatteredpixel.shatteredpixeldungeon.items.Item;
 import com.shatteredpixel.shatteredpixeldungeon.items.Recipe;
 import com.shatteredpixel.shatteredpixeldungeon.items.stones.StoneOfClairvoyance;
 import com.shatteredpixel.shatteredpixeldungeon.levels.RegularLevel;
+import com.shatteredpixel.shatteredpixeldungeon.levels.Terrain;
 import com.shatteredpixel.shatteredpixeldungeon.levels.rooms.Room;
 import com.shatteredpixel.shatteredpixeldungeon.levels.rooms.secret.SecretRoom;
 import com.shatteredpixel.shatteredpixeldungeon.messages.Messages;
@@ -134,10 +135,34 @@ public class ScrollOfHint extends Scroll {
 		
 		RegularLevel level = (RegularLevel) Dungeon.level;
 		
+		// Find secret rooms that haven't been discovered yet
 		ArrayList<Room> secretRooms = new ArrayList<>();
 		for (Room r : level.rooms()) {
 			if (r instanceof SecretRoom) {
-				secretRooms.add(r);
+				// Check if the secret room's entrance has been discovered
+				boolean discovered = false;
+				if (r.connected.isEmpty()) {
+					// Room not connected yet, treat as undiscovered
+					discovered = false;
+				} else {
+					// Check if any door to this room has been discovered
+					for (Room neighbor : r.connected.keySet()) {
+						Room.Door door = r.connected.get(neighbor);
+						if (door != null) {
+							int doorPos = level.pointToCell(new Point(door.x, door.y));
+							// If the door is no longer SECRET_DOOR, it has been discovered
+							if (doorPos >= 0 && doorPos < level.length()
+									&& level.map[doorPos] != Terrain.SECRET_DOOR) {
+								discovered = true;
+								break;
+							}
+						}
+					}
+				}
+				
+				if (!discovered) {
+					secretRooms.add(r);
+				}
 			}
 		}
 		
