@@ -96,10 +96,8 @@ public class ScrollOfSecret extends ScrollOfHint {
 		// Call parent's doRead for hint functionality
 		super.doRead();
 
-		// Deduct energy only - no fixed uses-cap, and identifying via throw (below) never touches energy
-		if (getHintDirection() != DIR_NONE) {
-			energy -= ENERGY_PER_USE;
-		}
+		// Always deduct energy when scroll is used
+		energy -= ENERGY_PER_USE;
 	}
 
 	/**
