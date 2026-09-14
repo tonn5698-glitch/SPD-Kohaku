@@ -125,8 +125,9 @@ public class HighGrass {
 			}
 			
 			if (naturalismLevel >= 0) {
-				// Seed, scales from 1/25 to 1/9
+				// Seed, scales from 1/25 to 1/9 (+25% boost)
 				float lootChance = 1/(25f - naturalismLevel*4f);
+				lootChance *= 1.25f; // +25% seed drop rate
 
 				// absolute max drop rate is ~1/6.5 with footwear of nature, ~1/18 without
 				lootChance *= PetrifiedSeed.grassLootMultiplier();
@@ -144,8 +145,9 @@ public class HighGrass {
 					}
 				}
 				
-				// Dew, scales from 1/6 to 1/4
+				// Dew, scales from 1/6 to 1/4 (+25% boost)
 				lootChance = 1/(6f -naturalismLevel/2f);
+				lootChance *= 1.25f; // +25% dew drop rate
 
 				//grassy levels spawn half as much dew
 				if (Dungeon.level != null && Dungeon.level.feeling == Level.Feeling.GRASS){
