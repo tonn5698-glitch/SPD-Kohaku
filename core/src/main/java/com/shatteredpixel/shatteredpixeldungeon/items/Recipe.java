@@ -198,6 +198,7 @@ public abstract class Recipe {
 		new TrinketCatalyst.Recipe(),
 		new Trinket.UpgradeTrinket(),
 		new ScrollOfHint.StoneToScroll(),
+		new ScrollOfHint.MergeScrolls(),
 		new ScrollOfSecret.HintToSecret()
 	};
 	

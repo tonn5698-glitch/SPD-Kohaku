@@ -24,9 +24,30 @@ package com.shatteredpixel.shatteredpixeldungeon.items.scrolls;
 import com.shatteredpixel.shatteredpixeldungeon.Assets;
 import com.shatteredpixel.shatteredpixeldungeon.Dungeon;
 import com.shatteredpixel.shatteredpixeldungeon.effects.SpellSprite;
+import com.shatteredpixel.shatteredpixeldungeon.items.Heap;
 import com.shatteredpixel.shatteredpixeldungeon.items.Item;
 import com.shatteredpixel.shatteredpixeldungeon.items.Recipe;
+import com.shatteredpixel.shatteredpixeldungeon.items.armor.Armor;
+import com.shatteredpixel.shatteredpixeldungeon.items.artifacts.Artifact;
+import com.shatteredpixel.shatteredpixeldungeon.items.potions.Potion;
+import com.shatteredpixel.shatteredpixeldungeon.items.potions.PotionOfExperience;
+import com.shatteredpixel.shatteredpixeldungeon.items.potions.PotionOfFrost;
+import com.shatteredpixel.shatteredpixeldungeon.items.potions.PotionOfHaste;
+import com.shatteredpixel.shatteredpixeldungeon.items.potions.PotionOfHealing;
+import com.shatteredpixel.shatteredpixeldungeon.items.potions.PotionOfInvisibility;
+import com.shatteredpixel.shatteredpixeldungeon.items.potions.PotionOfLevitation;
+import com.shatteredpixel.shatteredpixeldungeon.items.potions.PotionOfLiquidFlame;
+import com.shatteredpixel.shatteredpixeldungeon.items.potions.PotionOfMindVision;
+import com.shatteredpixel.shatteredpixeldungeon.items.potions.PotionOfParalyticGas;
+import com.shatteredpixel.shatteredpixeldungeon.items.potions.PotionOfPurity;
+import com.shatteredpixel.shatteredpixeldungeon.items.potions.PotionOfStrength;
+import com.shatteredpixel.shatteredpixeldungeon.items.potions.PotionOfToxicGas;
+import com.shatteredpixel.shatteredpixeldungeon.items.potions.exotic.ExoticPotion;
+import com.shatteredpixel.shatteredpixeldungeon.items.rings.Ring;
+import com.shatteredpixel.shatteredpixeldungeon.items.scrolls.exotic.ExoticScroll;
 import com.shatteredpixel.shatteredpixeldungeon.items.stones.StoneOfClairvoyance;
+import com.shatteredpixel.shatteredpixeldungeon.items.wands.Wand;
+import com.shatteredpixel.shatteredpixeldungeon.items.weapon.Weapon;
 import com.shatteredpixel.shatteredpixeldungeon.levels.RegularLevel;
 import com.shatteredpixel.shatteredpixeldungeon.levels.rooms.Room;
 import com.shatteredpixel.shatteredpixeldungeon.levels.rooms.secret.SecretRoom;
@@ -54,11 +75,15 @@ public class ScrollOfHint extends Scroll {
 	
 	private static int hintDirection = DIR_NONE;
 	
-	//quality stat only - does NOT gate reading (doRead() has no limit). Set at creation
-	//(alchemy recipe, or MAX_ENERGY by default for loot-found scrolls). Used only by
-	//StoneToScroll (crafting) and HintToSecret (upgrading) recipes below.
+	//shared energy pool for BOTH abilities: room-hint (doRead) and vague item-hint (thrown items).
+	//no regen - accepted as a rare, finite-use item. Also the "quality" stat used by the
+	//StoneToScroll and MergeScrolls recipes below, and read by HintToSecret in ScrollOfSecret.
 	public static final int MAX_ENERGY = 10;
 	private int energy = MAX_ENERGY;
+	
+	public static final int ROOM_HINT_COST = 1;
+	public static final int IDENTIFY_COST_LOW = 2;   //weapon, armor, ring, artifact, wand
+	public static final int IDENTIFY_COST_HIGH = 5;  //potion, scroll
 	
 	// Identification: 3 uses, costs 3 energy per identification
 	private int idUses = 3;
@@ -125,6 +150,11 @@ public class ScrollOfHint extends Scroll {
 
 	@Override
 	public void doRead() {
+		if (energy < ROOM_HINT_COST) {
+			GLog.w(Messages.get(this, "no_energy"));
+			return;
+		}
+		
 		if (!(Dungeon.level instanceof RegularLevel)) {
 			GLog.i(Messages.get(this, "no_secret"));
 			hintDirection = DIR_NONE;
@@ -211,6 +241,8 @@ public class ScrollOfHint extends Scroll {
 		SpellSprite.show(curUser, SpellSprite.MAP);
 		Sample.INSTANCE.play(Assets.Sounds.READ);
 		
+		energy -= ROOM_HINT_COST;
+		
 		readAnimation();
 	}
 	
@@ -283,6 +315,113 @@ public class ScrollOfHint extends Scroll {
 			this.roomsAway = roomsAway;
 			this.doorSide = doorSide;
 		}
+	}
+	
+	//=== Vague item-hint on throw (shared classification also reused by ScrollOfSecret) ===
+	
+	//true for the "high cost" tier (potion, scroll) - false for the "low cost" tier
+	//(weapon, armor, ring, artifact, wand). Shared with ScrollOfSecret's discounted costs.
+	protected static boolean isHighCostItem(Item item) {
+		return item instanceof Potion || item instanceof Scroll;
+	}
+	
+	//classifies an item into a message-key slug. Shared by ScrollOfHint's vague hints
+	//(prefixed "vague_") and ScrollOfSecret's real flavor text for potions/scrolls
+	//(used as-is - weapon/armor/ring/artifact/wand are handled separately there with real stats).
+	protected static String classifyItem(Item item) {
+		if (item instanceof Potion) {
+			return classifyPotion(item);
+		} else if (item instanceof Weapon) {
+			return "weapon";
+		} else if (item instanceof Armor) {
+			return "armor";
+		} else if (item instanceof Ring) {
+			return "ring";
+		} else if (item instanceof Artifact) {
+			return "artifact";
+		} else if (item instanceof Wand) {
+			return "wand";
+		} else if (item instanceof Scroll) {
+			return classifyScroll(item);
+		}
+		return "item";
+	}
+	
+	private static String classifyPotion(Item item) {
+		if (item instanceof ExoticPotion) return "potion_exotic";
+		else if (item instanceof PotionOfHealing) return "potion_healing";
+		else if (item instanceof PotionOfExperience) return "potion_experience";
+		else if (item instanceof PotionOfFrost) return "potion_frost";
+		else if (item instanceof PotionOfToxicGas) return "potion_toxicgas";
+		else if (item instanceof PotionOfLiquidFlame) return "potion_liquidflame";
+		else if (item instanceof PotionOfInvisibility) return "potion_invisibility";
+		else if (item instanceof PotionOfPurity) return "potion_purity";
+		else if (item instanceof PotionOfStrength) return "potion_strength";
+		else if (item instanceof PotionOfHaste) return "potion_haste";
+		else if (item instanceof PotionOfLevitation) return "potion_levitation";
+		else if (item instanceof PotionOfMindVision) return "potion_mindvision";
+		else if (item instanceof PotionOfParalyticGas) return "potion_paralyticgas";
+		else return "potion_unknown";
+	}
+	
+	private static String classifyScroll(Item item) {
+		if (item instanceof ExoticScroll) return "scroll_exotic";
+		else if (item instanceof ScrollOfUpgrade) return "scroll_upgrade";
+		else if (item instanceof ScrollOfTransmutation) return "scroll_transmutation";
+		else if (item instanceof ScrollOfRemoveCurse) return "scroll_removecurse";
+		else if (item instanceof ScrollOfIdentify) return "scroll_identify";
+		else if (item instanceof ScrollOfMagicMapping) return "scroll_magicmapping";
+		else if (item instanceof ScrollOfTeleportation) return "scroll_teleport";
+		else if (item instanceof ScrollOfRecharging) return "scroll_recharging";
+		else if (item instanceof ScrollOfMirrorImage) return "scroll_mirrorimage";
+		else if (item instanceof ScrollOfRage) return "scroll_rage";
+		else if (item instanceof ScrollOfRetribution) return "scroll_retribution";
+		else if (item instanceof ScrollOfTerror) return "scroll_terror";
+		else if (item instanceof ScrollOfLullaby) return "scroll_lullaby";
+		else if (item instanceof ScrollOfSecret) return "scroll_secret"; //check before ScrollOfHint - subclass of it
+		else if (item.getClass() == ScrollOfHint.class) return "scroll_hint";
+		else return "scroll_unknown";
+	}
+	
+	/**
+	 * Hook for the throw mechanic: called whenever an item lands in a heap (dropped or thrown).
+	 * If a Scroll of Hint (not Secret - Secret's own hook runs first and takes priority; this
+	 * naturally no-ops afterward since the item is already identified) is present in that heap,
+	 * gives a vague, category-only hint about the item. Does NOT call item.identify() - this
+	 * is a hint, not a real identification, and never marks the item as known.
+	 */
+	public static boolean tryHintAt(int cell, Item droppedItem) {
+		if (Dungeon.level == null || droppedItem == null || droppedItem.isIdentified()) return false;
+		
+		Heap heap = Dungeon.level.heaps.get(cell);
+		if (heap == null) return false;
+		
+		ScrollOfHint source = null;
+		for (Item item : heap.items) {
+			//exact class match only - a ScrollOfSecret present should be handled by its own hook, not this one
+			if (item != droppedItem && item.getClass() == ScrollOfHint.class) {
+				source = (ScrollOfHint) item;
+				break;
+			}
+		}
+		if (source == null) return false;
+		
+		int cost = isHighCostItem(droppedItem) ? IDENTIFY_COST_HIGH : IDENTIFY_COST_LOW;
+		if (source.energy < cost) {
+			GLog.w(Messages.get(ScrollOfHint.class, "no_energy"));
+			return false;
+		}
+		
+		String msg = getHintMessage(droppedItem);
+		if (msg == null) return false;
+		
+		source.energy -= cost;
+		GLog.p(msg);
+		return true;
+	}
+	
+	private static String getHintMessage(Item item) {
+		return Messages.get(ScrollOfHint.class, "vague_" + classifyItem(item));
 	}
 	
 	@Override
@@ -367,6 +506,85 @@ public class ScrollOfHint extends Scroll {
 				result.setEnergy(stonesUsed(ingredients) * ENERGY_PER_STONE);
 			}
 			return result;
+		}
+	}
+	
+	//merges 2 Scrolls of Hint into 1 (Minecraft-style combine). Bonus X on top of the raw sum:
+	//sum 0-5 -> X=1, sum 6-9 -> X=2. If the raw sum is already >=10, OR the bonus would push a
+	//9-sum past MAX_ENERGY, the result upgrades straight to a Scroll of Secret instead, carrying
+	//the raw summed energy (capped at Secret's own max) rather than the Hint bonus.
+	public static class MergeScrolls extends Recipe {
+		
+		private static final int NORMAL_COST = 2;
+		private static final int UPGRADE_COST = 6;
+		
+		@Override
+		public boolean testIngredients(ArrayList<Item> ingredients) {
+			if (ingredients.size() != 2) return false;
+			for (Item i : ingredients) {
+				//exact class match only - excludes ScrollOfSecret, which extends ScrollOfHint
+				if (i.getClass() != ScrollOfHint.class || i.quantity() != 1) return false;
+			}
+			return true;
+		}
+		
+		private boolean upgradesToSecret(ArrayList<Item> ingredients) {
+			int sum = rawSum(ingredients);
+			return sum >= 10 || sum + bonus(sum) > MAX_ENERGY;
+		}
+		
+		private int rawSum(ArrayList<Item> ingredients) {
+			return ((ScrollOfHint) ingredients.get(0)).getEnergy() + ((ScrollOfHint) ingredients.get(1)).getEnergy();
+		}
+		
+		private int bonus(int sum) {
+			if (sum <= 5) return 1;
+			else return 2; //6-9 (sum >= 10 is handled by upgradesToSecret before bonus matters)
+		}
+		
+		@Override
+		public int cost(ArrayList<Item> ingredients) {
+			if (!testIngredients(ingredients)) return 0;
+			return upgradesToSecret(ingredients) ? UPGRADE_COST : NORMAL_COST;
+		}
+		
+		@Override
+		public Item brew(ArrayList<Item> ingredients) {
+			if (!testIngredients(ingredients)) return null;
+			
+			int sum = rawSum(ingredients);
+			for (Item i : ingredients) {
+				i.quantity(0);
+			}
+			
+			if (upgradesToSecret(ingredients)) {
+				ScrollOfSecret result = new ScrollOfSecret();
+				result.setEnergy(sum);
+				return result;
+			} else {
+				ScrollOfHint result = new ScrollOfHint();
+				result.setEnergy(sum + bonus(sum));
+				return result;
+			}
+		}
+		
+		@Override
+		public Item sampleOutput(ArrayList<Item> ingredients) {
+			if (ingredients != null && ingredients.size() == 2
+					&& ingredients.get(0).getClass() == ScrollOfHint.class
+					&& ingredients.get(1).getClass() == ScrollOfHint.class) {
+				int sum = rawSum(ingredients);
+				if (upgradesToSecret(ingredients)) {
+					ScrollOfSecret result = new ScrollOfSecret();
+					result.setEnergy(sum);
+					return result;
+				} else {
+					ScrollOfHint result = new ScrollOfHint();
+					result.setEnergy(sum + bonus(sum));
+					return result;
+				}
+			}
+			return new ScrollOfHint();
 		}
 	}
 }

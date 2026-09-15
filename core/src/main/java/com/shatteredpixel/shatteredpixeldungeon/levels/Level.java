@@ -75,6 +75,7 @@ import com.shatteredpixel.shatteredpixeldungeon.items.artifacts.TalismanOfForesi
 import com.shatteredpixel.shatteredpixeldungeon.items.artifacts.TimekeepersHourglass;
 import com.shatteredpixel.shatteredpixeldungeon.items.bombs.Bomb;
 import com.shatteredpixel.shatteredpixeldungeon.items.potions.PotionOfStrength;
+import com.shatteredpixel.shatteredpixeldungeon.items.scrolls.ScrollOfHint;
 import com.shatteredpixel.shatteredpixeldungeon.items.scrolls.ScrollOfSecret;
 import com.shatteredpixel.shatteredpixeldungeon.items.scrolls.ScrollOfUpgrade;
 import com.shatteredpixel.shatteredpixeldungeon.items.scrolls.exotic.ScrollOfChallenge;
@@ -1044,8 +1045,10 @@ public abstract class Level implements Bundlable {
 		}
 		
 		if (Dungeon.level != null && ShatteredPixelDungeon.scene() instanceof GameScene) {
-			//lets a Scroll of Secret already sitting in this heap identify the item that just landed here
+			//Secret runs first (real identify) - if it succeeds the item becomes identified,
+			//so Hint's vague hint below naturally no-ops (it skips already-identified items)
 			ScrollOfSecret.tryIdentifyAt( cell, item );
+			ScrollOfHint.tryHintAt( cell, item );
 			pressCell( cell );
 		}
 		

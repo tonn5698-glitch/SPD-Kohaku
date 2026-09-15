@@ -29,24 +29,11 @@ import com.shatteredpixel.shatteredpixeldungeon.items.Heap;
 import com.shatteredpixel.shatteredpixeldungeon.items.Item;
 import com.shatteredpixel.shatteredpixeldungeon.items.Recipe;
 import com.shatteredpixel.shatteredpixeldungeon.items.potions.Potion;
-import com.shatteredpixel.shatteredpixeldungeon.items.potions.PotionOfExperience;
-import com.shatteredpixel.shatteredpixeldungeon.items.potions.PotionOfFrost;
-import com.shatteredpixel.shatteredpixeldungeon.items.potions.PotionOfHaste;
-import com.shatteredpixel.shatteredpixeldungeon.items.potions.PotionOfHealing;
-import com.shatteredpixel.shatteredpixeldungeon.items.potions.PotionOfInvisibility;
-import com.shatteredpixel.shatteredpixeldungeon.items.potions.PotionOfLevitation;
-import com.shatteredpixel.shatteredpixeldungeon.items.potions.PotionOfLiquidFlame;
-import com.shatteredpixel.shatteredpixeldungeon.items.potions.PotionOfMindVision;
-import com.shatteredpixel.shatteredpixeldungeon.items.potions.PotionOfParalyticGas;
-import com.shatteredpixel.shatteredpixeldungeon.items.potions.PotionOfPurity;
-import com.shatteredpixel.shatteredpixeldungeon.items.potions.PotionOfStrength;
-import com.shatteredpixel.shatteredpixeldungeon.items.potions.PotionOfToxicGas;
-import com.shatteredpixel.shatteredpixeldungeon.items.potions.exotic.ExoticPotion;
-import com.shatteredpixel.shatteredpixeldungeon.items.scrolls.exotic.ExoticScroll;
-import com.shatteredpixel.shatteredpixeldungeon.items.weapon.Weapon;
 import com.shatteredpixel.shatteredpixeldungeon.items.armor.Armor;
+import com.shatteredpixel.shatteredpixeldungeon.items.artifacts.Artifact;
 import com.shatteredpixel.shatteredpixeldungeon.items.rings.Ring;
 import com.shatteredpixel.shatteredpixeldungeon.items.wands.Wand;
+import com.shatteredpixel.shatteredpixeldungeon.items.weapon.Weapon;
 import com.shatteredpixel.shatteredpixeldungeon.levels.RegularLevel;
 import com.shatteredpixel.shatteredpixeldungeon.levels.rooms.Room;
 import com.shatteredpixel.shatteredpixeldungeon.levels.rooms.secret.SecretRoom;
@@ -61,15 +48,19 @@ import java.util.ArrayList;
 
 /**
  * Scroll of Secret — variant of Scroll of Hint.
- * - 15 energy, costs 2 per use, no fixed use-count (energy is the only limit)
- * - Reveals hidden doors (like Scroll of Hint)
- * - Can identify items when thrown on them - this is free, does not cost energy
- * - Flavor text for potions/scrolls/etc based on their actual type
+ * - 15 energy, no fixed use-count (energy is the only limit, no regen)
+ * - Reveals hidden doors (like Scroll of Hint), costs 1 energy per read
+ * - Can identify items when thrown on them (real identify, item.identify() called) -
+ *   costs energy too, at a 20% discount vs Scroll of Hint's vague-hint costs
+ * - Real, stat-based text for weapon/armor/ring/artifact/wand; flavor text for potions/scrolls
  */
 public class ScrollOfSecret extends ScrollOfHint {
 
-	private static final int MAX_ENERGY = 15;
-	private static final int ENERGY_PER_USE = 2;
+	public static final int MAX_ENERGY = 15;
+	private static final int ENERGY_PER_USE = 1;
+	//20% off ScrollOfHint's identify costs, rounded down
+	private static final int IDENTIFY_COST_LOW = (int) (ScrollOfHint.IDENTIFY_COST_LOW * 0.8f);   // 2 -> 1
+	private static final int IDENTIFY_COST_HIGH = (int) (ScrollOfHint.IDENTIFY_COST_HIGH * 0.8f); // 5 -> 4
 
 	private int energy = MAX_ENERGY;
 
@@ -79,6 +70,10 @@ public class ScrollOfSecret extends ScrollOfHint {
 		stackable = false;
 		icon = ItemSpriteSheet.Icons.SCROLL_MAGICMAP; // use same icon as Hint
 		anonymous = true;
+	}
+
+	public void setEnergy(int value) {
+		energy = Math.max(0, Math.min(MAX_ENERGY, value));
 	}
 
 	@Override
@@ -104,10 +99,10 @@ public class ScrollOfSecret extends ScrollOfHint {
 	 * Hook for the "well of knowledge" throw mechanic: call this whenever an item lands
 	 * in a heap (dropped or thrown), passing the cell it landed on and the item itself.
 	 * If a Scroll of Secret is already sitting in that same heap, the newly-landed item
-	 * gets identified via identifyOnStep() below.
+	 * gets identified via identifyOnStep() below - drawing energy from that specific scroll.
 	 *
-	 * This only wires up *receiving* the throw - it does not change identifyOnStep() or
-	 * getIdentifyMessage(), which remain the scroll's own identification logic.
+	 * This only wires up *receiving* the throw - it does not change getIdentifyMessage()
+	 * flavor text for potions/scrolls, which remain the scroll's own identification logic.
 	 */
 	public static boolean tryIdentifyAt(int cell, Item droppedItem) {
 		if (Dungeon.level == null || droppedItem == null) return false;
@@ -117,26 +112,30 @@ public class ScrollOfSecret extends ScrollOfHint {
 
 		for (Item item : heap.items) {
 			if (item != droppedItem && item instanceof ScrollOfSecret) {
-				return identifyOnStep(droppedItem);
+				return ((ScrollOfSecret) item).identifyOnStep(droppedItem);
 			}
 		}
 		return false;
 	}
 
 	/**
-	 * Identify an item when thrown onto this scroll.
-	 * Called from Scroll.doThrow() or similar.
-	 * Free - does not touch energy or any use-count. Only doRead() (scanning) costs energy.
+	 * Identify an item when thrown onto this scroll. Costs energy from THIS specific scroll -
+	 * 20% cheaper than Scroll of Hint's vague-hint cost, rounded down.
 	 */
-	public static boolean identifyOnStep(Item item) {
+	private boolean identifyOnStep(Item item) {
 		if (item == null || item.isIdentified()) return false;
-
-		// Check if there's a ScrollOfSecret at the hero's position
 		if (Dungeon.level == null) return false;
+
+		int cost = isHighCostItem(item) ? IDENTIFY_COST_HIGH : IDENTIFY_COST_LOW;
+		if (energy < cost) {
+			GLog.w(Messages.get(this, "no_energy"));
+			return false;
+		}
 
 		String idMsg = getIdentifyMessage(item);
 		if (idMsg != null) {
 			item.identify();
+			energy -= cost;
 			GLog.p(idMsg);
 			Badges.validateItemLevelAquired(item);
 			return true;
@@ -145,87 +144,38 @@ public class ScrollOfSecret extends ScrollOfHint {
 	}
 
 	/**
-	 * Get flavor text for identifying an item.
-	 * IMPORTANT: this checks the item's actual class, not item.name() - name() returns the
-	 * scrambled/unidentified display name at this point (identify() hasn't run yet), so a
-	 * substring check against it never matches anything and always falls through.
+	 * Get identify text for an item. Potions/scrolls: flavor text keyed by real type (via the
+	 * shared classifyItem() in ScrollOfHint - IMPORTANT: keyed by class, not item.name(), since
+	 * name() returns the scrambled/unidentified display name at this point). Weapon/armor/ring/
+	 * artifact/wand: real stat-based text built from the item's own fields.
 	 */
 	private static String getIdentifyMessage(Item item) {
-		if (item instanceof Potion) {
-			if (item instanceof ExoticPotion) {
-				return Messages.get(ScrollOfSecret.class, "potion_exotic");
-			} else if (item instanceof PotionOfHealing) {
-				return Messages.get(ScrollOfSecret.class, "potion_golden");
-			} else if (item instanceof PotionOfExperience) {
-				return Messages.get(ScrollOfSecret.class, "potion_silver");
-			} else if (item instanceof PotionOfFrost) {
-				return Messages.get(ScrollOfSecret.class, "potion_azure");
-			} else if (item instanceof PotionOfToxicGas) {
-				return Messages.get(ScrollOfSecret.class, "potion_bistre");
-			} else if (item instanceof PotionOfLiquidFlame) {
-				return Messages.get(ScrollOfSecret.class, "potion_crimson");
-			} else if (item instanceof PotionOfInvisibility) {
-				return Messages.get(ScrollOfSecret.class, "potion_indigo");
-			} else if (item instanceof PotionOfPurity) {
-				return Messages.get(ScrollOfSecret.class, "potion_ivory");
-			} else if (item instanceof PotionOfStrength) {
-				return Messages.get(ScrollOfSecret.class, "potion_jade");
-			} else if (item instanceof PotionOfHaste) {
-				return Messages.get(ScrollOfSecret.class, "potion_magenta");
-			} else if (item instanceof PotionOfLevitation) {
-				return Messages.get(ScrollOfSecret.class, "potion_turquoise");
-			} else if (item instanceof PotionOfMindVision) {
-				return Messages.get(ScrollOfSecret.class, "potion_teal");
-			} else if (item instanceof PotionOfParalyticGas) {
-				return Messages.get(ScrollOfSecret.class, "potion_slate");
-			} else {
-				return Messages.get(ScrollOfSecret.class, "potion_amber");
-			}
+		if (item instanceof Armor) {
+			return armorIdentifyMessage((Armor) item);
 		} else if (item instanceof Weapon) {
-			return Messages.get(ScrollOfSecret.class, "weapon");
-		} else if (item instanceof Armor) {
-			return Messages.get(ScrollOfSecret.class, "armor");
+			return cursedRevealMessage(((Weapon) item).cursed);
+		} else if (item instanceof Artifact) {
+			return cursedRevealMessage(((Artifact) item).cursed);
 		} else if (item instanceof Ring) {
-			return Messages.get(ScrollOfSecret.class, "ring");
+			return Messages.get(ScrollOfSecret.class, "identify_ring", Messages.get(item.getClass(), "name"));
 		} else if (item instanceof Wand) {
-			return Messages.get(ScrollOfSecret.class, "wand");
-		} else if (item instanceof Scroll) {
-			if (item instanceof ExoticScroll) {
-				return Messages.get(ScrollOfSecret.class, "scroll_exotic");
-			} else if (item instanceof ScrollOfUpgrade) {
-				return Messages.get(ScrollOfSecret.class, "scroll_upgrade");
-			} else if (item instanceof ScrollOfIdentify) {
-				return Messages.get(ScrollOfSecret.class, "scroll_identify");
-			} else if (item instanceof ScrollOfRemoveCurse) {
-				return Messages.get(ScrollOfSecret.class, "scroll_removecurse");
-			} else if (item instanceof ScrollOfMagicMapping) {
-				return Messages.get(ScrollOfSecret.class, "scroll_magicmapping");
-			} else if (item instanceof ScrollOfTeleportation) {
-				return Messages.get(ScrollOfSecret.class, "scroll_teleport");
-			} else if (item instanceof ScrollOfRecharging) {
-				return Messages.get(ScrollOfSecret.class, "scroll_recharging");
-			} else if (item instanceof ScrollOfMirrorImage) {
-				return Messages.get(ScrollOfSecret.class, "scroll_mirrorimage");
-			} else if (item instanceof ScrollOfRage) {
-				return Messages.get(ScrollOfSecret.class, "scroll_rage");
-			} else if (item instanceof ScrollOfRetribution) {
-				return Messages.get(ScrollOfSecret.class, "scroll_retribution");
-			} else if (item instanceof ScrollOfTerror) {
-				return Messages.get(ScrollOfSecret.class, "scroll_terror");
-			} else if (item instanceof ScrollOfTransmutation) {
-				return Messages.get(ScrollOfSecret.class, "scroll_transmutation");
-			} else if (item instanceof ScrollOfLullaby) {
-				return Messages.get(ScrollOfSecret.class, "scroll_lullaby");
-			} else if (item instanceof ScrollOfSecret) {
-				//check before ScrollOfHint - this class is a subclass of it
-				return Messages.get(ScrollOfSecret.class, "scroll_secret");
-			} else if (item instanceof ScrollOfHint) {
-				return Messages.get(ScrollOfSecret.class, "scroll_hint");
-			} else {
-				return Messages.get(ScrollOfSecret.class, "scroll_unknown");
-			}
+			return Messages.get(ScrollOfSecret.class, "identify_wand", Messages.get(item.getClass(), "name"));
+		} else if (item instanceof Potion || item instanceof Scroll) {
+			return Messages.get(ScrollOfSecret.class, classifyItem(item));
 		}
 		return Messages.get(ScrollOfSecret.class, "item");
+	}
+	
+	private static String armorIdentifyMessage(Armor armor) {
+		String glyphPhrase = armor.glyph != null
+				? Messages.get(ScrollOfSecret.class, "identify_has_glyph",
+						Messages.get(armor.glyph.getClass(), "name", "").trim())
+				: Messages.get(ScrollOfSecret.class, "identify_no_glyph");
+		return Messages.get(ScrollOfSecret.class, "identify_armor", armor.STRReq(), glyphPhrase);
+	}
+	
+	private static String cursedRevealMessage(boolean cursed) {
+		return Messages.get(ScrollOfSecret.class, cursed ? "identify_cursed" : "identify_not_cursed");
 	}
 
 	@Override
