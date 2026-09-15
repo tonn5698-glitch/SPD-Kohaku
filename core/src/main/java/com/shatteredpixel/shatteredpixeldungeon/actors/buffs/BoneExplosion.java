@@ -10,6 +10,15 @@ import com.shatteredpixel.shatteredpixeldungeon.effects.Speck;
 import com.shatteredpixel.shatteredpixeldungeon.messages.Messages;
 import com.shatteredpixel.shatteredpixeldungeon.ui.BuffIndicator;
 import com.shatteredpixel.shatteredpixeldungeon.utils.GLog;
+import com.shatteredpixel.shatteredpixeldungeon.actors.hero.HeroClass;
+import com.shatteredpixel.shatteredpixeldungeon.actors.hero.HeroSubClass;
+import com.shatteredpixel.shatteredpixeldungeon.actors.hero.Talent;
+import com.shatteredpixel.shatteredpixeldungeon.actors.hero.spells.HolyWard;
+import com.shatteredpixel.shatteredpixeldungeon.actors.hero.spells.ShieldOfLight;
+import com.shatteredpixel.shatteredpixeldungeon.actors.buffs.MagicImmune;
+import com.shatteredpixel.shatteredpixeldungeon.items.wands.WandOfLivingEarth;
+import com.shatteredpixel.shatteredpixeldungeon.plants.Earthroot;
+import com.shatteredpixel.shatteredpixeldungeon.ui.TargetHealthIndicator;
 import com.watabou.noosa.audio.Sample;
 import com.watabou.utils.Bundle;
 import com.watabou.utils.PathFinder;
@@ -19,15 +28,15 @@ import com.watabou.utils.Random;
  * Volatile skeleton bone explosion buff.
  *
  * Mechanics:
- * - 15% chance on spawn to be marked volatile
- * - When hero attacks → dark particles emit (3-15 based on HP)
- * - When HP < 30% → warning sound + message
- * - When HP < 50% after warning → drain skeleton HP + speed reduction
+ * - 25% chance on spawn to be marked volatile
+ * - When hero attacks -> dark particles emit (3-15 based on HP)
+ * - When HP < 30% -> warning sound + message
+ * - When HP < 50% after warning -> drain skeleton HP + speed reduction
  * - On death:
  *   - Low (6-12): immediate explosion
- *   - Medium (12-24): 1 turn delay, red square indicator
- *   - Max (24-46): 1 turn delay, red square indicator
- * - 85% chance = normal (no explosion)
+ *   - Medium (12-24): 2 turns delay, skeleton frozen
+ *   - Max (24-36): 2 turns delay, skeleton frozen
+ * - 75% chance = normal (no explosion)
  */
 public class BoneExplosion extends Buff {
 
@@ -41,7 +50,7 @@ public class BoneExplosion extends Buff {
 
     // explosion damage ranges per tier
     public static final int[] MIN_DMG = {6, 6, 12, 24};
-    public static final int[] MAX_DMG = {12, 12, 24, 46};
+    public static final int[] MAX_DMG = {12, 12, 24, 36};
 
     public void setVolatile(boolean v) {
         volatile_ = v;
@@ -126,10 +135,6 @@ public class BoneExplosion extends Buff {
         }
     }
 
-    /**
-     * Called when the volatile skeleton dies.
-     * Returns the explosion damage range based on tier.
-     */
     public int getMinDamage() {
         return MIN_DMG[tier];
     }
@@ -145,6 +150,7 @@ public class BoneExplosion extends Buff {
     /**
      * Create delayed explosion for medium/max tier.
      * The explosion happens after 1 turn.
+     * Full armor/resistance interactions (same as Skeleton.explodeNow).
      */
     public static void delayedExplosion(final int pos, final int minDmg, final int maxDmg) {
         Actor.addDelayed(new Actor() {
@@ -154,9 +160,9 @@ public class BoneExplosion extends Buff {
 
             @Override
             protected boolean act() {
-                // Emit explosion particles
+                // Emit explosion particles (small, not SPECK.LIGHT)
                 if (Dungeon.level.heroFOV[pos]) {
-                    CellEmitter.get(pos).burst(Speck.factory(Speck.BONE), 15);
+                    CellEmitter.get(pos).burst(Speck.factory(Speck.BONE), 5);
                     Sample.INSTANCE.play(Assets.Sounds.BLAST);
                 }
 
@@ -166,6 +172,44 @@ public class BoneExplosion extends Buff {
                     Char ch = Actor.findChar(pos + PathFinder.NEIGHBOURS8[i]);
                     if (ch != null && ch.isAlive()) {
                         int damage = Math.round(Random.NormalIntRange(minDmg, maxDmg));
+
+                        // All sources of DR are 2x effective vs. bone explosion
+                        WandOfLivingEarth.RockArmor rockArmor = ch.buff(WandOfLivingEarth.RockArmor.class);
+                        if (rockArmor != null) {
+                            int preDmg = damage;
+                            damage = rockArmor.absorb(damage);
+                            damage *= Math.round(damage / (float) preDmg);
+                        }
+
+                        Earthroot.Armor earthroot = ch.buff(Earthroot.Armor.class);
+                        if (damage > 0 && earthroot != null) {
+                            int preDmg = damage;
+                            damage = earthroot.absorb(damage);
+                            damage -= (preDmg - damage);
+                        }
+
+                        if (ch.buff(MagicImmune.class) == null) {
+                            ShieldOfLight.ShieldOfLightTracker shield = ch.buff(ShieldOfLight.ShieldOfLightTracker.class);
+                            if (shield != null && shield.object == pos) {
+                                int min = 1 + Dungeon.hero.pointsInTalent(Talent.SHIELD_OF_LIGHT);
+                                damage -= Random.NormalIntRange(min, 2 * min);
+                                damage -= Random.NormalIntRange(min, 2 * min);
+                                damage = Math.max(damage, 0);
+                            } else if (ch == Dungeon.hero
+                                    && Dungeon.hero.heroClass != HeroClass.CLERIC
+                                    && Dungeon.hero.hasTalent(Talent.SHIELD_OF_LIGHT)
+                                    && TargetHealthIndicator.instance.target() != null) {
+                                if (Random.Int(6) < 1 + Dungeon.hero.pointsInTalent(Talent.SHIELD_OF_LIGHT)) {
+                                    damage -= 2;
+                                }
+                            }
+
+                            if (ch.buff(HolyWard.HolyArmBuff.class) != null) {
+                                damage -= Dungeon.hero.subClass == HeroSubClass.PALADIN ? 6 : 2;
+                            }
+                        }
+
+                        // Apply DR twice (with 2 rolls for more consistency)
                         damage = Math.max(0, damage - (ch.drRoll() + ch.drRoll()));
                         ch.damage(damage, BoneExplosion.class);
                         if (ch == Dungeon.hero && !ch.isAlive()) {
@@ -179,6 +223,7 @@ public class BoneExplosion extends Buff {
                     GLog.n(Messages.get(BoneExplosion.class, "explo_kill"));
                 }
 
+                Actor.remove(this);
                 return true;
             }
         }, 1f); // 1 turn delay

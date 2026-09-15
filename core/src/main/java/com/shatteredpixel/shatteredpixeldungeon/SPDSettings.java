@@ -161,6 +161,11 @@ public class SPDSettings extends GameSettings {
 	public static void quickSwapper(boolean value ){ put( KEY_QUICK_SWAP, value ); }
 	
 	public static boolean quickSwapper(){ return getBoolean( KEY_QUICK_SWAP, true); }
+
+	// Kohaku: configurable slot count (5-12)
+	private static final String KEY_SLOT_COUNT = "slot_count";
+	public static void slotCount(int value) { put( KEY_SLOT_COUNT, value ); }
+	public static int slotCount() { return getInt( KEY_SLOT_COUNT, 6 ); }
 	
 	public static void flipToolbar( boolean value) {
 		put(KEY_FLIPTOOLBAR, value );

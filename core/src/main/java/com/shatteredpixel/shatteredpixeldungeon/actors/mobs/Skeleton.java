@@ -24,6 +24,7 @@ package com.shatteredpixel.shatteredpixeldungeon.actors.mobs;
 import com.shatteredpixel.shatteredpixeldungeon.Assets;
 import com.shatteredpixel.shatteredpixeldungeon.Dungeon;
 import com.shatteredpixel.shatteredpixeldungeon.actors.Char;
+import com.shatteredpixel.shatteredpixeldungeon.actors.Actor;
 import com.shatteredpixel.shatteredpixeldungeon.actors.buffs.AscensionChallenge;
 import com.shatteredpixel.shatteredpixeldungeon.actors.buffs.BoneExplosion;
 import com.shatteredpixel.shatteredpixeldungeon.actors.buffs.Buff;
@@ -45,6 +46,7 @@ import com.shatteredpixel.shatteredpixeldungeon.sprites.SkeletonSprite;
 import com.shatteredpixel.shatteredpixeldungeon.ui.TargetHealthIndicator;
 import com.shatteredpixel.shatteredpixeldungeon.utils.GLog;
 import com.watabou.noosa.audio.Sample;
+import com.watabou.utils.Bundle;
 import com.watabou.utils.PathFinder;
 import com.watabou.utils.Random;
 
@@ -52,6 +54,11 @@ public class Skeleton extends Mob {
 
 	// 25% chance to be volatile on spawn
 	private static final float VOLATILE_CHANCE = 0.25f;
+
+	// Countdown timer for delayed explosion (medium/max)
+	// -1 = normal, >=0 = counting down to explode
+	private int countdown = -1;
+	private static final String COUNTDOWN = "countdown";
 
 	{
 		spriteClass = SkeletonSprite.class;
@@ -72,7 +79,7 @@ public class Skeleton extends Mob {
 	@Override
 	protected void onAdd() {
 		super.onAdd();
-		// 15% chance to be volatile on spawn
+		// 25% chance to be volatile on spawn
 		if (Random.Float() < VOLATILE_CHANCE) {
 			Buff.affect(this, BoneExplosion.class).setVolatile(true);
 		}
@@ -110,6 +117,41 @@ public class Skeleton extends Mob {
 	}
 
 	@Override
+	public void damage(int dmg, Object src) {
+		// If volatile and HP <= 0: freeze skeleton, start countdown
+		BoneExplosion be = buff(BoneExplosion.class);
+		if (be != null && be.isVolatile() && HP - dmg <= 0 && countdown < 0) {
+			HP = 1; // keep alive
+			paralysed += 2; // freeze 2 turns
+			countdown = 2; // 2 turns then explode
+
+			if (Dungeon.level.heroFOV[pos]) {
+				GLog.w(Messages.get(this, "exploding"));
+				// Dark particle burst
+				sprite.emitter().burst(Speck.factory(Speck.BONE), 10);
+			}
+			return; // don't take more damage
+		}
+
+		super.damage(dmg, src);
+	}
+
+	@Override
+	public boolean act() {
+		// If counting down to explosion
+		if (countdown > 0) {
+			countdown--;
+			spend(TICK);
+			if (countdown <= 0) {
+				// Time to explode
+				die(null);
+			}
+			return true;
+		}
+		return super.act();
+	}
+
+	@Override
 	public void die( Object cause ) {
 
 		BoneExplosion be = buff(BoneExplosion.class);
@@ -125,11 +167,6 @@ public class Skeleton extends Mob {
 
 			if (tier >= 2) {
 				// Medium/Max: delayed explosion (1 turn)
-				if (Dungeon.level.heroFOV[pos]) {
-					GLog.w(Messages.get(this, "exploding"));
-					// Red square indicator on the cell
-					CellEmitter.get(pos).burst(Speck.factory(Speck.LIGHT), 8);
-				}
 				BoneExplosion.delayedExplosion(pos, minDmg, maxDmg);
 			} else {
 				// Low: immediate explosion
@@ -254,6 +291,18 @@ public class Skeleton extends Mob {
 		}
 
 		return desc;
+	}
+
+	@Override
+	public void storeInBundle(Bundle bundle) {
+		super.storeInBundle(bundle);
+		bundle.put(COUNTDOWN, countdown);
+	}
+
+	@Override
+	public void restoreFromBundle(Bundle bundle) {
+		super.restoreFromBundle(bundle);
+		countdown = bundle.getInt(COUNTDOWN);
 	}
 
 }

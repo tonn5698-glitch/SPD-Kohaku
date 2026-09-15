@@ -81,6 +81,22 @@ public class WndCharSettings extends Window {
 		loseSlider.setRect(0, pos, WIDTH, SLIDER_HEIGHT);
 		pos += SLIDER_HEIGHT + GAP;
 
+		// Slot count slider: 5 to 12, default 6
+		OptionSlider slotSlider = new OptionSlider(
+				Messages.get(this, "slot_count"),
+				"5",
+				"12",
+				5, 12) {
+			@Override
+			protected void onChange() {
+				SPDSettings.slotCount(getSelectedValue());
+			}
+		};
+		slotSlider.setSelectedValue(SPDSettings.slotCount());
+		add(slotSlider);
+		slotSlider.setRect(0, pos, WIDTH, SLIDER_HEIGHT);
+		pos += SLIDER_HEIGHT + GAP;
+
 		resize(WIDTH, (int) pos);
 	}
 }
