@@ -1,5 +1,20 @@
 # Buffs / Thay đổi tỷ lệ
 
+## Mob Drop Rate (+10%)
+
+**File:** `actors/mobs/Mob.java`
+
+Tăng 10% tỷ lệ rơi đồ của tất cả quái vật.
+
+```java
+// Trong lootChance()
+dropBonus += 0.10f; // +10% mob drop rate
+```
+
+Áp dụng cho tất cả mobs, cộng dồn với Ring of Wealth và talents.
+
+---
+
 ## Grass Drop Rate (+25%)
 
 **File:** `levels/features/HighGrass.java`

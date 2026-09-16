@@ -1053,6 +1053,9 @@ public abstract class Mob extends Char {
 
 		dropBonus += ShardOfOblivion.lootChanceMultiplier()-1f;
 
+		// Kohaku mod: +10% mob drop rate
+		dropBonus += 0.10f;
+
 		return lootChance * dropBonus;
 	}
 	
