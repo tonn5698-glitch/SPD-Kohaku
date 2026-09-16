@@ -30,7 +30,6 @@ import com.shatteredpixel.shatteredpixeldungeon.actors.Actor;
 import com.shatteredpixel.shatteredpixeldungeon.actors.Char;
 import com.shatteredpixel.shatteredpixeldungeon.actors.buffs.Buff;
 import com.shatteredpixel.shatteredpixeldungeon.actors.buffs.Poison;
-import com.shatteredpixel.shatteredpixeldungeon.actors.hero.Hero;
 import com.shatteredpixel.shatteredpixeldungeon.actors.mobs.Mob;
 import com.shatteredpixel.shatteredpixeldungeon.items.weapon.missiles.darts.PoisonDart;
 import com.shatteredpixel.shatteredpixeldungeon.mechanics.Ballistica;
@@ -73,31 +72,24 @@ public class PoisonDartTrap extends Trap {
 			protected boolean act() {
 				Actor.remove(this);
 				Char target = Actor.findChar(pos);
-
 				if (target != null && !canTarget(target)){
 					target = null;
 				}
+				float closestDist = target != null ? Dungeon.level.trueDistance(pos, target.pos) : Float.MAX_VALUE;
 
-				//find the closest char that can be aimed at
-				//can't target beyond view distance, with a min of 6 (torch range)
-				//add 0.5 for better consistency with vision radius shape
-				float range = Math.max(6, Dungeon.level.viewDistance)+0.5f;
-				if (target == null){
-					float closestDist = Float.MAX_VALUE;
-					for (Char ch : Actor.chars()){
-						if (!ch.isAlive()) continue;
-						float curDist = Dungeon.level.trueDistance(pos, ch.pos);
-						//invis targets are considered to be at max range
-						if (ch.invisible > 0) curDist = Math.max(curDist, range);
-						Ballistica bolt = new Ballistica(pos, ch.pos, Ballistica.PROJECTILE);
-						if (canTarget(ch) && bolt.collisionPos == ch.pos
-								&& ( curDist < closestDist || (curDist == closestDist && target instanceof Hero))){
-							target = ch;
-							closestDist = curDist;
-						}
-					}
-					if (closestDist > range){
-						target = null;
+				//always go for whoever is closest within a short range - hero or monster -
+				//instead of only checking others when nobody is standing directly on the trap
+				float range = 4f;
+				for (Char ch : Actor.chars()){
+					if (!ch.isAlive() || ch == target || !canTarget(ch)) continue;
+					float curDist = Dungeon.level.trueDistance(pos, ch.pos);
+					if (curDist > range) continue;
+					//invisible targets are out of range, so they're never preferentially targeted
+					if (ch.invisible > 0) continue;
+					Ballistica bolt = new Ballistica(pos, ch.pos, Ballistica.PROJECTILE);
+					if (bolt.collisionPos == ch.pos && curDist < closestDist){
+						target = ch;
+						closestDist = curDist;
 					}
 				}
 
