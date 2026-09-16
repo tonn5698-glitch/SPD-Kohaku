@@ -63,6 +63,7 @@ import java.util.ArrayList;
 public class MeleeWeapon extends Weapon {
 
 	public static String AC_ABILITY = "ABILITY";
+	public static String AC_ABILITY2 = "ABILITY2"; // Kohaku mod: second ability
 
 	@Override
 	public void activate(Char ch) {
@@ -87,6 +88,9 @@ public class MeleeWeapon extends Weapon {
 		ArrayList<String> actions = super.actions(hero);
 		if (isEquipped(hero) && hero.heroClass == HeroClass.DUELIST){
 			actions.add(AC_ABILITY);
+			if (hasSecondAbility()){
+				actions.add(AC_ABILITY2);
+			}
 		}
 		return actions;
 	}
@@ -95,6 +99,8 @@ public class MeleeWeapon extends Weapon {
 	public String actionName(String action, Hero hero) {
 		if (action.equals(AC_ABILITY)){
 			return Messages.upperCase(Messages.get(this, "ability_name"));
+		} else if (action.equals(AC_ABILITY2)){
+			return Messages.upperCase(Messages.get(this, "ability2_name"));
 		} else {
 			return super.actionName(action, hero);
 		}
@@ -147,10 +153,60 @@ public class MeleeWeapon extends Weapon {
 				}
 			}
 		}
+
+		// Kohaku mod: second ability handler
+		if (action.equals(AC_ABILITY2) && hasSecondAbility()){
+			usesTargeting = false;
+			if (!isEquipped(hero)) {
+				if (hero.hasTalent(Talent.SWIFT_EQUIP)){
+					if (hero.buff(Talent.SwiftEquipCooldown.class) == null
+						|| hero.buff(Talent.SwiftEquipCooldown.class).hasSecondUse()){
+						execute(hero, AC_EQUIP);
+					} else if (hero.heroClass == HeroClass.DUELIST) {
+						GLog.w(Messages.get(this, "ability_need_equip"));
+					}
+				} else if (hero.heroClass == HeroClass.DUELIST) {
+					GLog.w(Messages.get(this, "ability_need_equip"));
+				}
+			} else if (hero.heroClass != HeroClass.DUELIST){
+				//do nothing
+			} else if (STRReq() > hero.STR()){
+				GLog.w(Messages.get(this, "ability_low_str"));
+			} else if ((Buff.affect(hero, Charger.class).charges + Buff.affect(hero, Charger.class).partialCharge) < ability2ChargeUse(hero, null)) {
+				GLog.w(Messages.get(this, "ability_no_charge"));
+			} else {
+
+				if (targetingPrompt2() == null){
+					duelistAbility2(hero, hero.pos);
+					updateQuickslot();
+				} else {
+					usesTargeting = useTargeting();
+					GameScene.selectCell(new CellSelector.Listener() {
+						@Override
+						public void onSelect(Integer cell) {
+							if (cell != null) {
+								duelistAbility2(hero, cell);
+								updateQuickslot();
+							}
+						}
+
+						@Override
+						public String prompt() {
+							return targetingPrompt2();
+						}
+					});
+				}
+			}
+		}
 	}
 
 	//leave null for no targeting
 	public String targetingPrompt(){
+		return null;
+	}
+
+	// Kohaku mod: second ability targeting prompt
+	public String targetingPrompt2(){
 		return null;
 	}
 
@@ -165,6 +221,19 @@ public class MeleeWeapon extends Weapon {
 
 	protected void duelistAbility( Hero hero, Integer target ){
 		//do nothing by default
+	}
+
+	// Kohaku mod: second ability methods
+	protected boolean hasSecondAbility(){
+		return false;
+	}
+
+	protected void duelistAbility2( Hero hero, Integer target ){
+		//do nothing by default
+	}
+
+	protected int ability2ChargeUse(Hero hero, Char target){
+		return 1;
 	}
 
 	protected void beforeAbilityUsed(Hero hero, Char target){

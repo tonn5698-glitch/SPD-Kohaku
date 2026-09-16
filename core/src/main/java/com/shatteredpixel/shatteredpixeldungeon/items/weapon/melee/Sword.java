@@ -36,6 +36,9 @@ import com.shatteredpixel.shatteredpixeldungeon.ui.BuffIndicator;
 import com.shatteredpixel.shatteredpixeldungeon.utils.GLog;
 import com.watabou.noosa.audio.Sample;
 import com.watabou.utils.Callback;
+import com.watabou.utils.PathFinder;
+
+import java.util.ArrayList;
 
 public class Sword extends MeleeWeapon {
 	
@@ -147,6 +150,69 @@ public class Sword extends MeleeWeapon {
 		public float iconFadePercent() {
 			return Math.max(0, (5 - visualcooldown()) / 5);
 		}
+	}
+
+	// Kohaku mod: Second ability - Split (Chẻ đôi)
+	@Override
+	protected boolean hasSecondAbility(){
+		return true;
+	}
+
+	@Override
+	public String targetingPrompt2() {
+		return Messages.get(this, "ability2_prompt");
+	}
+
+	@Override
+	protected void duelistAbility2(Hero hero, Integer target) {
+		// Split attacks all adjacent enemies
+		int dmgBoost = augment.damageFactor(3 + buffedLvl());
+		Sword.splitAbility(hero, target, 0.75f, dmgBoost, this);
+	}
+
+	public static void splitAbility(Hero hero, Integer target, float dmgMulti, int dmgBoost, MeleeWeapon wep){
+		if (target == null) {
+			return;
+		}
+
+		Char enemy = Actor.findChar(target);
+		if (enemy == null || enemy == hero || hero.isCharmedBy(enemy) || !Dungeon.level.heroFOV[target]) {
+			GLog.w(Messages.get(wep, "ability_no_target"));
+			return;
+		}
+
+		// Find all enemies adjacent to the target
+		ArrayList<Char> targets = new ArrayList<>();
+		for (int i : PathFinder.NEIGHBOURS8) {
+			Char ch = Actor.findChar(target + i);
+			if (ch != null && ch != hero && ch.isAlive() && !hero.isCharmedBy(ch) && Dungeon.level.heroFOV[target + i]) {
+				targets.add(ch);
+			}
+		}
+		// Add the main target
+		if (!targets.contains(enemy)) {
+			targets.add(enemy);
+		}
+
+		hero.sprite.attack(target, new Callback() {
+			@Override
+			public void call() {
+				wep.beforeAbilityUsed(hero, enemy);
+				AttackIndicator.target(enemy);
+
+				for (Char ch : targets) {
+					if (ch.isAlive()) {
+						hero.attack(ch, dmgMulti, dmgBoost, Char.INFINITE_ACCURACY);
+					}
+				}
+
+				Sample.INSTANCE.play(Assets.Sounds.HIT_STRONG);
+				Invisibility.dispel();
+
+				hero.spendAndNext(hero.attackDelay());
+				wep.afterAbilityUsed(hero);
+			}
+		});
 	}
 
 }
