@@ -207,7 +207,8 @@ public class Badges {
 		GAMES_PLAYED_5              ( 124, BadgeType.GLOBAL ),
 		HIGH_SCORE_5                ( 125 ),
 		CHAMPION_2                  ( 126 ),
-		CHAMPION_3                  ( 127 );
+		CHAMPION_3                  ( 127 ),
+		TRAP_KILL_DART              ( 128 ); // Kohaku mod: kill mob with dart trap
 
 		public boolean meta;
 
@@ -539,6 +540,14 @@ public class Badges {
 		if (!local.contains( Badge.ENEMY_HAZARDS ) && Statistics.hazardAssistedKills >= 10) {
 			local.add( Badge.ENEMY_HAZARDS );
 			displayBadge( Badge.ENEMY_HAZARDS );
+		}
+	}
+	
+	// Kohaku mod: validate dart trap kill
+	public static void validateDartTrapKill() {
+		if (!local.contains( Badge.TRAP_KILL_DART )) {
+			local.add( Badge.TRAP_KILL_DART );
+			displayBadge( Badge.TRAP_KILL_DART );
 		}
 	}
 	

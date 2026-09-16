@@ -88,20 +88,24 @@ public class WornDartTrap extends Trap {
 					if (Dungeon.level.heroFOV[pos] || Dungeon.level.heroFOV[target.pos]) {
 						((MissileSprite) ShatteredPixelDungeon.scene().recycle(MissileSprite.class)).
 								reset(pos, finalTarget.sprite, new Dart(), new Callback() {
-									@Override
-									public void call() {
-										int dmg = Random.NormalIntRange(4, 8) - finalTarget.drRoll();
-										finalTarget.damage(dmg, WornDartTrap.this);
-										if (finalTarget == Dungeon.hero && !finalTarget.isAlive()){
-											Dungeon.fail( WornDartTrap.this  );
-											GLog.n(Messages.get(WornDartTrap.class, "ondeath"));
-											if (reclaimed) Badges.validateDeathFromFriendlyMagic();
-										}
-										Sample.INSTANCE.play(Assets.Sounds.HIT, 1, 1, Random.Float(0.8f, 1.25f));
-										finalTarget.sprite.bloodBurstA(finalTarget.sprite.center(), dmg);
-										finalTarget.sprite.flash();
-										next();
+								@Override
+								public void call() {
+									int dmg = Random.NormalIntRange(4, 8) - finalTarget.drRoll();
+									finalTarget.damage(dmg, WornDartTrap.this);
+									if (finalTarget == Dungeon.hero && !finalTarget.isAlive()){
+										Dungeon.fail( WornDartTrap.this  );
+										GLog.n(Messages.get(WornDartTrap.class, "ondeath"));
+										if (reclaimed) Badges.validateDeathFromFriendlyMagic();
 									}
+									// Kohaku mod: validate dart trap kill badge
+									if (finalTarget instanceof Mob && !finalTarget.isAlive()){
+										Badges.validateDartTrapKill();
+									}
+									Sample.INSTANCE.play(Assets.Sounds.HIT, 1, 1, Random.Float(0.8f, 1.25f));
+									finalTarget.sprite.bloodBurstA(finalTarget.sprite.center(), dmg);
+									finalTarget.sprite.flash();
+									next();
+								}
 								});
 						return false;
 					} else {

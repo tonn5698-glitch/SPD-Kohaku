@@ -494,21 +494,25 @@ public class HeroSprite extends CharSprite {
 
 	@Override
 	public synchronized void attack( int cell, Callback callback ) {
-		ensureNormalSheet();
 		onAttackAction(); // track turns for monini de-transform
 		super.attack( cell, callback );
+		//must run AFTER super.attack() - that's what sets curAnim to `attack` via play(attack).
+		//calling this before would always see the old (idle/run) anim and miss the dizzy-attack texture swap.
+		ensureNormalSheet();
 	}
 
 	@Override
 	public synchronized void zap( int cell, Callback callback ) {
-		ensureNormalSheet();
 		super.zap( cell, callback );
+		//see note in attack() above - must run after super.zap() sets curAnim to `zap`
+		ensureNormalSheet();
 	}
 
 	@Override
 	public synchronized void operate( int cell, Callback callback ) {
-		if (drinkTimer < 0) ensureNormalSheet();
 		super.operate( cell, callback );
+		//see note in attack() above - must run after super.operate() sets curAnim to `operate`
+		if (drinkTimer < 0) ensureNormalSheet();
 	}
 
 	@Override
