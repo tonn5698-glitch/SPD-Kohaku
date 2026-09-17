@@ -10,3 +10,4 @@ Danh sách các thay đổi theo ngày.
 | [2026-09-11](2026-09-11.md) | SPD 4.0.0 Update + Skeleton Bone Explosion |
 | [2026-09-14](2026-09-14.md) | Scroll of Hint + Scroll of Secret + Food Buff |
 | [2026-09-15](2026-09-15.md) | classifyItem + MergeScrolls recipe |
+| [2026-09-16](2026-09-16.md) | Dart Traps + Statue/Golem Nerf + Sword Split |
