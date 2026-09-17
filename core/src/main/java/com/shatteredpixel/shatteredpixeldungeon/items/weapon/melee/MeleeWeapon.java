@@ -433,6 +433,10 @@ public class MeleeWeapon extends Weapon {
 		//the mage's staff has no ability as it can only be gained by the mage
 		if (Dungeon.hero != null && Dungeon.hero.heroClass == HeroClass.DUELIST && !(this instanceof MagesStaff)){
 			info += "\n\n" + abilityInfo();
+			// Kohaku mod: show second ability info
+			if (hasSecondAbility()){
+				info += "\n\n" + abilityInfo2();
+			}
 		}
 		
 		return info;
@@ -444,6 +448,11 @@ public class MeleeWeapon extends Weapon {
 
 	public String abilityInfo() {
 		return Messages.get(this, "ability_desc");
+	}
+
+	// Kohaku mod: second ability info
+	public String abilityInfo2() {
+		return Messages.get(this, "ability2_desc");
 	}
 
 	public String upgradeAbilityStat(int level){
