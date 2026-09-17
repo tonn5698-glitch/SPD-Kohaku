@@ -42,8 +42,9 @@ public class Golem extends Mob {
 	{
 		spriteClass = GolemSprite.class;
 		
-		HP = HT = 120;
-		defenseSkill = 15;
+		// Kohaku mod: -20% stats
+		HP = HT = (int)(120 * 0.8f);
+		defenseSkill = (int)(15 * 0.8f);
 		
 		EXP = 12;
 		maxLvl = 22;
@@ -60,12 +61,14 @@ public class Golem extends Mob {
 
 	@Override
 	public int damageRoll() {
-		return Random.NormalIntRange( 25, 30 );
+		// Kohaku mod: -20% damage
+		return Random.NormalIntRange( 20, 24 );
 	}
 	
 	@Override
 	public int attackSkill( Char target ) {
-		return 28;
+		// Kohaku mod: -20% attack
+		return (int)(28 * 0.8f);
 	}
 	
 	@Override

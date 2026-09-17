@@ -1,5 +1,8 @@
 # 2. Animation uống thuốc
 
+![Drink - normal effect](02_normal_effects.gif)
+![Drink - dizzy effect](02_dizzy.gif)
+
 Khi hero uống potion, sprite chơi 5-phase animation thay vì chỉ play operate.
 
 ## Flow

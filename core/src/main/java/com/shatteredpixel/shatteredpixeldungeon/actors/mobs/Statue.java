@@ -56,8 +56,9 @@ public class Statue extends Mob {
 	public Statue() {
 		super();
 		
-		HP = HT = 15 + Dungeon.depth * 5;
-		defenseSkill = 4 + Dungeon.depth;
+		// Kohaku mod: -20% stats
+		HP = HT = (int)((15 + Dungeon.depth * 5) * 0.8f);
+		defenseSkill = (int)((4 + Dungeon.depth) * 0.8f);
 	}
 
 	public void createWeapon( boolean useDecks ){
@@ -96,7 +97,8 @@ public class Statue extends Mob {
 	
 	@Override
 	public int attackSkill( Char target ) {
-		return (int)((9 + Dungeon.depth) * weapon.accuracyFactor( this, target ));
+		// Kohaku mod: -20% attack
+		return (int)(((9 + Dungeon.depth) * 0.8f) * weapon.accuracyFactor( this, target ));
 	}
 	
 	@Override

@@ -1,5 +1,7 @@
 # 1. Cơ chế 4 hướng
 
+![4-direction preview](01_4direction_preview.gif)
+
 Kohaku sử dụng sprite sheet RPG Maker 96×96 với 4 hướng: DOWN(0), LEFT(1), RIGHT(2), UP(3).
 
 ## Sprite sheet layout

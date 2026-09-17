@@ -43,8 +43,8 @@ public class ArmoredStatue extends Statue {
 	public ArmoredStatue(){
 		super();
 
-		//double HP
-		HP = HT = 30 + Dungeon.depth * 10;
+		// Kohaku mod: -20% stats
+		HP = HT = (int)((30 + Dungeon.depth * 10) * 0.8f);
 	}
 
 	@Override

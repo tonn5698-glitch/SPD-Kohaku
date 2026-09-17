@@ -1,5 +1,7 @@
 # 3. Animation uống nước (Waterskin)
 
+![Waterskin animation](03_waterskin.gif)
+
 Tương tự drink animation nhưng dùng cho Waterskin item.
 
 ## Flow
